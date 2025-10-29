@@ -1,0 +1,50 @@
+{
+    "professional": {
+        "american": [
+            { "Colour Combination": "Navy + White + Tan", "T-Shirt/Shirt": "Crisp White Dress Shirt", "Trousers/Bottom": "Tan Chino or Wool Trousers", "Jacket/Layer": "Navy Blue Blazer", "Shoes & Accessories": "Brown Leather Derby/Loafers, Brown Belt" },
+            { "Colour Combination": "Charcoal Grey + Light Blue", "T-Shirt/Shirt": "Light Blue Oxford Shirt", "Trousers/Bottom": "Charcoal Grey Dress Trousers", "Jacket/Layer": "Charcoal Grey Suit Blazer", "Shoes & Accessories": "Black Shoes, Burgundy Tie & Pocket Square" },
+            { "Colour Combination": "Black + Cream + Cognac", "T-Shirt/Shirt": "Cream Silk Blouse", "Trousers/Bottom": "Black Trousers or Pencil Skirt", "Jacket/Layer": "Black Structured Blazer", "Shoes & Accessories": "Cognac Leather Loafers/Pumps, Cognac Tote Bag" },
+            { "Colour Combination": "Olive Green + White + Navy", "T-Shirt/Shirt": "White Button-Down Shirt", "Trousers/Bottom": "Navy Blue Trousers or Skirt", "Jacket/Layer": "Olive Green Tweed Blazer", "Shoes & Accessories": "Navy Heels/Loafers, Pearl Earrings, Leather Portfolio" },
+            { "Colour Combination": "Dusty Pink + Grey", "T-Shirt/Shirt": "Light Grey V-Neck Sweater", "Trousers/Bottom": "Grey Wool Trousers", "Jacket/Layer": "Dusty Pink Trench Coat", "Shoes & Accessories": "Black Ankle Boots, Silver Jewelry, Black Crossbody Bag" }
+        ],
+        "indian": [
+            { "Colour Combination": "Ivory + Navy + Gold", "T-Shirt/Shirt": "Navy Blue (as embroidery on Kurti)", "Trousers/Bottom": "Ivory/White Churidar or Palazzo", "Jacket/Layer": "Ivory/Beige Kurti Set", "Shoes & Accessories": "Gold Mojaris, Gold Statement Earrings, Potli Bag" },
+            { "Colour Combination": "Sage Green + Cream", "T-Shirt/Shirt": "Cream Colored Blouse (for Saree)", "Trousers/Bottom": "Cream Trousers (with Kurti)", "Jacket/Layer": "Sage Green & Cream Printed Kurti / Saree", "Shoes & Accessories": "Silver/Gold Juttis, Oxidized Silver Jewelry" },
+            { "Colour Combination": "Burgundy + Beige", "T-Shirt/Shirt": "Beige Silk Shirt (under Jacket)", "Trousers/Bottom": "Beige Linen Trousers", "Jacket/Layer": "Burgundy Long Waistcoat", "Shoes & Accessories": "Brown Brogues, Wooden Bead Necklace" },
+            { "Colour Combination": "Slate Blue + Silver Grey", "T-Shirt/Shirt": "Silver Grey Kurta", "Trousers/Bottom": "Slate Blue Trousers or Churidar", "Jacket/Layer": "Silver Grey Nehru Jacket", "Shoes & Accessories": "Black Kolhapuris, Steel Watch, Grey Pocket Square" },
+            { "Colour Combination": "Terracotta + Off-White", "T-Shirt/Shirt": "Off-White Cotton Shirt", "Trousers/Bottom": "Terracotta Wrap Skirt or Trousers", "Jacket/Layer": "Terracotta & Off-White Ikat Blazer", "Shoes & Accessories": "Brown Wedges, Jute Tote, Tribal Earrings" }
+        ]
+    },
+    "party": {
+        "american": [
+            { "Colour Combination": "Black + Metallic Gold", "T-Shirt/Shirt": "Black Silk Camisole or Sequinned Top", "Trousers/Bottom": "Black Leather Pants or Satin Skirt", "Jacket/Layer": "Gold-Threaded Blazer or Shawl", "Shoes & Accessories": "Gold Strappy Heels, Clutch, Statement Cuff" },
+            { "Colour Combination": "Emerald Green + Black", "T-Shirt/Shirt": "Emerald Green Satin or Velvet Top", "Trousers/Bottom": "Black High-Waisted Trousers or Mini Skirt", "Jacket/Layer": "Black Leather Moto Jacket", "Shoes & Accessories": "Black Stilettos, Small Black Clutch" },
+            { "Colour Combination": "Royal Blue + Silver", "T-Shirt/Shirt": "Royal Blue One-Shoulder Top", "Trousers/Bottom": "Silver Sequin Skirt or Tailored Trousers", "Jacket/Layer": "-", "Shoes & Accessories": "Silver Heels, Geometric Silver Earrings, Cuff Bracelet" },
+            { "Colour Combination": "Wine Red + Champagne", "T-Shirt/Shirt": "Wine Red Velvet Bodysuit", "Trousers/Bottom": "Champagne (light gold) Wide-Leg Trousers", "Jacket/Layer": "Black Velvet Blazer", "Shoes & Accessories": "Nude Heels, Black Clutch, Diamond Studs" },
+            { "Colour Combination": "All White", "T-Shirt/Shirt": "White Ruffled or Lace Top", "Trousers/Bottom": "White Wide-Leg Palazzos or Skirt", "Jacket/Layer": "White Structured Blazer", "Shoes & Accessories": "Silver or Nude Heels, Silver Clutch, Turquoise Statement Necklace" }
+        ],
+        "indian": [
+            { "Colour Combination": "Magenta + Orange + Gold", "T-Shirt/Shirt": "Orange/Gold Blouse (Choli)", "Trousers/Bottom": "Magenta Lehenga with Gold/Orange Work", "Jacket/Layer": "Orange & Gold Dupatta", "Shoes & Accessories": "Gold Heels/Sandals, Heavy Kundan Necklace" },
+            { "Colour Combination": "Peach + Navy + Silver", "T-Shirt/Shirt": "Navy Blue Backless Blouse", "Trousers/Bottom": "Peach Lehenga with Silver Zari", "Jacket/Layer": "Navy Blue Dupatta with Silver Sequins", "Shoes & Accessories": "Silver Sandals, Polki/Silver Jewellery" },
+            { "Colour Combination": "Black + Red + Gold", "T-Shirt/Shirt": "Red Blouse (for Saree)", "Trousers/Bottom": "Black Saree/Dress with Red & Gold Border", "Jacket/Layer": "Red & Gold Dupatta (for Kurta)", "Shoes & Accessories": "Gold Heels, Gold & Kundan Choker, Red Bindi" },
+            { "Colour Combination": "Purple + Pink + Silver", "T-Shirt/Shirt": "Hot Pink Blouse", "Trousers/Bottom": "Purple Lehenga with Pink & Silver Embroidery", "Jacket/Layer": "Pink Ombre Dupatta", "Shoes & Accessories": "Silver Heels, Pink & Purple Stone Choker, Hand Harness" },
+            { "Colour Combination": "Teal + Copper/Brown", "T-Shirt/Shirt": "Brown/Nude Net Blouse", "Trousers/Bottom": "Teal Lehenga with Copper/Gold Embroidery", "Jacket/Layer": "Brown & Gold Organza Dupatta", "Shoes & Accessories": "Golden Heels, Temple Jewelry, Maang Tikka" }
+        ]
+    },
+    "casual": {
+        "american": [
+            { "Colour Combination": "Denim Blue + White + Camel", "T-Shirt/Shirt": "White Cotton T-Shirt or Sweater", "Trousers/Bottom": "Blue Denim Jeans (any wash)", "Jacket/Layer": "Camel Trench or Wool Coat", "Shoes & Accessories": "White Sneakers, Tan Crossbody Bag" },
+            { "Colour Combination": "Olive Green + Mustard + Brown", "T-Shirt/Shirt": "Mustard Yellow Hoodie or T-Shirt", "Trousers/Bottom": "Brown Corduroy Pants or Jeans", "Jacket/Layer": "Olive Green Utility Jacket", "Shoes & Accessories": "Brown Boots, Beanie, Canvas Backpack" },
+            { "Colour Combination": "Lavender + Grey + White", "T-Shirt/Shirt": "Lavender Graphic Tee", "Trousers/Bottom": "Light Grey Jeans or Joggers", "Jacket/Layer": "White Denim Jacket", "Shoes & Accessories": "White Sneakers, Lavender Socks, Backpack" },
+            { "Colour Combination": "Maroon + Khaki", "T-Shirt/Shirt": "Maroon Long-Sleeve Tee or Henley", "Trousers/Bottom": "Khaki Chino Shorts or Trousers", "Jacket/Layer": "-", "Shoes & Accessories": "Brown Leather Sandals/Sneakers, Aviator Sunglasses, Watch" },
+            { "Colour Combination": "All Black (with a pop)", "T-Shirt/Shirt": "Black T-Shirt", "Trousers/Bottom": "Black Jeans", "Jacket/Layer": "Black Bomber Jacket", "Shoes & Accessories": "Red/Neon Green Sneakers, Black Cap, Silver Chain Necklace" }
+        ],
+        "indian": [
+            { "Colour Combination": "White + Pastel Pink + Coral", "T-Shirt/Shirt": "White Cotton Kurta with Pink Prints", "Trousers/Bottom": "Pastel Pink Palazzos or Leggings", "Jacket/Layer": "-", "Shoes & Accessories": "Coral Coloured Juttis, Pink & White Bangles, Tote Bag" },
+            { "Colour Combination": "Mustard Yellow + Off-White", "T-Shirt/Shirt": "Mustard Yellow Printed Kurta", "Trousers/Bottom": "Off-White Palazzo Pants or Dhoti Pants", "Jacket/Layer": "-", "Shoes & Accessories": "Embroidered Juttis, Large Tote Bag, Wooden Bangles" },
+            { "Colour Combination": "Sky Blue + Cream", "T-Shirt/Shirt": "Sky Blue Anarkali or Straight Cut Kurta", "Trousers/Bottom": "Cream Colored Salwar or Churidar", "Jacket/Layer": "Cream Dupatta (with light print)", "Shoes & Accessories": "Kolhapuri Sandals, Oxidized Earrings, Sling Bag" },
+            { "Colour Combination": "Rust Orange + Navy Blue", "T-Shirt/Shirt": "Rust Orange Short Kurti", "Trousers/Bottom": "Navy Blue Jeggings or Dhoti Pants", "Jacket/Layer": "Navy Blue Waistcoat", "Shoes & Accessories": "Blue Juttis, Silver Amulet Necklace, Sling Bag" },
+            { "Colour Combination": "Earth Tones (Olive + Beige + Brown)", "T-Shirt/Shirt": "Olive Green Pathani Kurta", "Trousers/Bottom": "Beige Cargo Pants or Linen Trousers", "Jacket/Layer": "Brown Gilet / Gilet", "Shoes & Accessories": "Brown Leather Sandals, Beaded Bracelets, Crossbody Bag" }
+        ]
+    }
+}
