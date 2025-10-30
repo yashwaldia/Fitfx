@@ -4,7 +4,7 @@ import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API,
-  authDomain: process.env.REACT_APP_FIREBASE_hDomain,
+  authDomain: process.env.REACT_APP_FIREBASE_Domain,
   projectId: process.env.REACT_APP_FIREBASE_projectId,
   storageBucket: process.env.REACT_APP_FIREBASE_storageBucket,
   messagingSenderId: process.env.REACT_APP_FIREBASE_messagingSenderId,
