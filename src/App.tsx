@@ -493,7 +493,7 @@ const App: React.FC = () => {
                 }`}
               >
                 <ColorSwatchIcon className="w-5 h-5" />
-                <span>Color Matrix</span>
+                <span>Color Suggestion</span>
               </button>
 
               <button
