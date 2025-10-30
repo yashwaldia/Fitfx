@@ -1,11 +1,8 @@
 import { GoogleGenAI, Type, Modality, Chat } from "@google/genai";
 import type { Occasion, Style, StyleAdvice, Gender, Garment, UserProfile } from '../types';
 
-const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
+const API_KEY = process.env.REACT_APP_GEMINI_API;
 
-if (!API_KEY) {
-  console.warn("Warning: REACT_APP_GEMINI_API_KEY is not set. Please add it to your .env.local file.");
-}
 
 const ai = new GoogleGenAI({ apiKey: API_KEY || "" });
 
@@ -152,7 +149,7 @@ export const getStyleAdvice = async (
     }
     return JSON.parse(jsonText) as StyleAdvice;
   } catch (error) {
-    console.error("Failed to parse Gemini response:", response.text);
+    console.error("Failed to parse Gemini response:");
     throw new Error("The AI returned an invalid response. Please try again.");
   }
 };

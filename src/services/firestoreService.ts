@@ -27,6 +27,7 @@ export const saveUserProfile = async (userId: string, profile: UserProfile) => {
     
     await setDoc(doc(db, 'users', userId), {
       profile: cleanedProfile,
+      wardrobe: [], // Initialize empty wardrobe array
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
@@ -60,16 +61,28 @@ export const addWardrobeItem = async (userId: string, garment: Garment) => {
   try {
     const docRef = doc(db, 'users', userId);
     
-    const garmentWithMeta = {
+    // Check if document exists
+    const docSnap = await getDoc(docRef);
+    
+    const garmentWithMeta: Garment = {
       ...garment,
       id: `garment-${Date.now()}`,
       uploadedAt: new Date().toISOString()
     };
     
-    await updateDoc(docRef, {
-      wardrobe: arrayUnion(garmentWithMeta),
-      updatedAt: new Date().toISOString()
-    });
+    if (!docSnap.exists()) {
+      // Create document with wardrobe if it doesn't exist
+      await setDoc(docRef, {
+        wardrobe: [garmentWithMeta],
+        updatedAt: new Date().toISOString()
+      });
+    } else {
+      // Update existing document
+      await updateDoc(docRef, {
+        wardrobe: arrayUnion(garmentWithMeta),
+        updatedAt: new Date().toISOString()
+      });
+    }
     
     console.log('Wardrobe item added to Firestore');
   } catch (error) {
@@ -92,6 +105,68 @@ export const loadWardrobe = async (userId: string): Promise<Garment[]> => {
     }
   } catch (error) {
     console.error('Error loading wardrobe:', error);
+    throw error;
+  }
+};
+
+// Update wardrobe item in Firestore
+export const updateWardrobeItem = async (userId: string, index: number, updatedGarment: Garment, allGarments: Garment[]) => {
+  try {
+    const docRef = doc(db, 'users', userId);
+    
+    // Check if document exists
+    const docSnap = await getDoc(docRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error('User document does not exist');
+    }
+    
+    // Update the garment at the specific index
+    const updatedWardrobe = [...allGarments];
+    
+    // Preserve metadata if it exists
+    const existingGarment = allGarments[index];
+    updatedWardrobe[index] = {
+      ...updatedGarment,
+      id: existingGarment?.id || `garment-${Date.now()}`,
+      uploadedAt: existingGarment?.uploadedAt || new Date().toISOString()
+    };
+    
+    await updateDoc(docRef, {
+      wardrobe: updatedWardrobe,
+      updatedAt: new Date().toISOString()
+    });
+    
+    console.log('Wardrobe item updated in Firestore');
+  } catch (error) {
+    console.error('Error updating wardrobe item:', error);
+    throw error;
+  }
+};
+
+// Delete wardrobe item from Firestore
+export const deleteWardrobeItem = async (userId: string, index: number, allGarments: Garment[]) => {
+  try {
+    const docRef = doc(db, 'users', userId);
+    
+    // Check if document exists
+    const docSnap = await getDoc(docRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error('User document does not exist');
+    }
+    
+    // Remove the garment at the specific index
+    const updatedWardrobe = allGarments.filter((_, i) => i !== index);
+    
+    await updateDoc(docRef, {
+      wardrobe: updatedWardrobe,
+      updatedAt: new Date().toISOString()
+    });
+    
+    console.log('Wardrobe item deleted from Firestore');
+  } catch (error) {
+    console.error('Error deleting wardrobe item:', error);
     throw error;
   }
 };

@@ -6,9 +6,16 @@ import { compressImageToBase64 } from '../services/firestoreService';
 interface WardrobeUploaderProps {
   wardrobe: Garment[];
   onAddToWardrobe: (garment: Garment) => void;
+  onUpdateWardrobe: (index: number, garment: Garment) => void;
+  onDeleteFromWardrobe: (index: number) => void;
 }
 
-const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({ wardrobe, onAddToWardrobe }) => {
+const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({ 
+  wardrobe, 
+  onAddToWardrobe,
+  onUpdateWardrobe,
+  onDeleteFromWardrobe
+}) => {
   const [garmentImage, setGarmentImage] = useState<string | null>(null);
   const [material, setMaterial] = useState('');
   const [color, setColor] = useState('');
@@ -51,8 +58,25 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({ wardrobe, onAddToWa
         setError('Please upload an image and fill in all fields.');
         return;
     }
-    const newGarment: Garment = { image: garmentImage, material, color };
-    onAddToWardrobe(newGarment);
+
+    if (editingItem) {
+      // Update existing item
+      const updatedGarment: Garment = { 
+        image: garmentImage, 
+        material, 
+        color 
+      };
+      onUpdateWardrobe(editingItem.index, updatedGarment);
+      setEditingItem(null);
+    } else {
+      // Add new item
+      const newGarment: Garment = { 
+        image: garmentImage, 
+        material, 
+        color 
+      };
+      onAddToWardrobe(newGarment);
+    }
     
     // Reset form
     setGarmentImage(null);
@@ -62,10 +86,8 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({ wardrobe, onAddToWa
   };
 
   const handleDelete = (index: number) => {
-    if (window.confirm('Are you sure you want to delete this item?')) {
-      const updatedWardrobe = wardrobe.filter((_, i) => i !== index);
-      // You'll need to add onDeleteFromWardrobe prop and implement in App.tsx
-      console.log('Delete item at index:', index);
+    if (window.confirm('Are you sure you want to delete this item from your wardrobe?')) {
+      onDeleteFromWardrobe(index);
       setMenuOpen(null);
     }
   };
@@ -77,7 +99,7 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({ wardrobe, onAddToWa
     setColor(item.color);
     setMenuOpen(null);
     // Scroll to form
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
 
   const handlePreview = (image: string) => {
@@ -85,9 +107,17 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({ wardrobe, onAddToWa
     setMenuOpen(null);
   };
 
+  const handleCancelEdit = () => {
+    setEditingItem(null);
+    setGarmentImage(null);
+    setMaterial('');
+    setColor('');
+    setError(null);
+  };
+
   return (
     <div className="space-y-8 animate-fade-in-up">
-        {/* Wardrobe Items Grid - Now at the top */}
+        {/* Wardrobe Items Grid - At the top */}
         {wardrobe.length > 0 && (
             <div>
                  <h3 className="text-xl font-semibold text-yellow-400 mb-4 text-center">Your Wardrobe ({wardrobe.length} items)</h3>
@@ -119,7 +149,7 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({ wardrobe, onAddToWa
                                 <div className="absolute top-10 right-2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10 min-w-[140px]">
                                     <button
                                         onClick={() => handleEdit(index, item)}
-                                        className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                                        className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2 rounded-t-lg"
                                     >
                                         <EditIcon className="w-4 h-4" />
                                         Edit
@@ -144,7 +174,7 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({ wardrobe, onAddToWa
             </div>
         )}
 
-        {/* Add to Wardrobe Form - Now at the bottom */}
+        {/* Add/Edit Wardrobe Form */}
         <div className="bg-gray-800/50 rounded-2xl p-6 shadow-[5px_5px_10px_#1a1a1a,_-5px_-5px_10px_#2c2c2c] border border-gray-700">
             <h2 className="text-2xl font-semibold text-yellow-400 mb-2 text-center">
                 {editingItem ? 'Edit Wardrobe Item' : 'Add to Your Wardrobe'}
@@ -204,13 +234,7 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({ wardrobe, onAddToWa
             <div className="flex gap-3 mt-6 justify-center">
                 {editingItem && (
                     <button
-                        onClick={() => {
-                            setEditingItem(null);
-                            setGarmentImage(null);
-                            setMaterial('');
-                            setColor('');
-                            setError(null);
-                        }}
+                        onClick={handleCancelEdit}
                         className="px-8 py-3 bg-gray-700 text-gray-200 font-semibold rounded-full hover:bg-gray-600 transition-all duration-300"
                     >
                         Cancel

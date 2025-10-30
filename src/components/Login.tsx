@@ -33,7 +33,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onSwitchToSignup }) => {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log('User logged in:', userCredential.user);
+      console.log('User logged in:');
       onLoginSuccess();
     } catch (err: any) {
       console.error('Login error:', err);

@@ -59,7 +59,7 @@ const Signup: React.FC<SignupProps> = ({ onSignupSuccess, onSwitchToLogin }) => 
         displayName: name
       });
 
-      console.log('User created:', userCredential.user);
+      console.log('User created:');
       onSignupSuccess();
     } catch (err: any) {
       console.error('Signup error:', err);

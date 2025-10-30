@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { auth } from './services/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
-import { saveUserProfile, loadUserProfile, loadWardrobe, addWardrobeItem } from './services/firestoreService';
+import { saveUserProfile, loadUserProfile, loadWardrobe, addWardrobeItem, updateWardrobeItem, deleteWardrobeItem } from './services/firestoreService';
 import { getStyleAdvice } from './services/geminiService';
 import type { StyleAdvice, Occasion, Style, Gender, Garment, UserProfile, OutfitData } from './types';
 import SelfieUploader from './components/SelfieUploader';
@@ -51,7 +51,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        console.log('User logged in:', user.uid);
+        console.log('User logged in:');
         setUserId(user.uid);
         
         try {
@@ -219,6 +219,47 @@ const App: React.FC = () => {
     }
   };
 
+  // Handle updating wardrobe item with Firestore update
+  const handleUpdateWardrobe = async (index: number, updatedGarment: Garment) => {
+    if (!userId) {
+      console.error('No user logged in');
+      return;
+    }
+
+    try {
+      // Update in Firestore
+      await updateWardrobeItem(userId, index, updatedGarment, wardrobe);
+      
+      // Update local state
+      const updatedWardrobe = [...wardrobe];
+      updatedWardrobe[index] = updatedGarment;
+      setWardrobe(updatedWardrobe);
+    } catch (error) {
+      console.error('Error updating wardrobe item:', error);
+      setError('Failed to update item. Please try again.');
+    }
+  };
+
+  // Handle deleting wardrobe item with Firestore delete
+  const handleDeleteFromWardrobe = async (index: number) => {
+    if (!userId) {
+      console.error('No user logged in');
+      return;
+    }
+
+    try {
+      // Delete from Firestore
+      await deleteWardrobeItem(userId, index, wardrobe);
+      
+      // Update local state
+      const updatedWardrobe = wardrobe.filter((_, i) => i !== index);
+      setWardrobe(updatedWardrobe);
+    } catch (error) {
+      console.error('Error deleting wardrobe item:', error);
+      setError('Failed to delete item. Please try again.');
+    }
+  };
+
   // Handle style advice submission
   const handleSubmit = useCallback(async () => {
     if (!uploadedImage) {
@@ -289,7 +330,7 @@ const App: React.FC = () => {
             <div className="flex items-center gap-3">
             <img 
               src={logoImage} 
-              alt="FitFxxx Logo" 
+              alt="FitFx Logo" 
               className="h-8 w-auto"
             />
             </div>
@@ -451,12 +492,14 @@ const App: React.FC = () => {
           <WardrobeUploader 
             wardrobe={wardrobe} 
             onAddToWardrobe={handleAddToWardrobe}
+            onUpdateWardrobe={handleUpdateWardrobe}
+            onDeleteFromWardrobe={handleDeleteFromWardrobe}
           />
         )}
 
         {view === 'editor' && <ImageEditor />}
 
-        {view === 'colorMatrix' && <ColorMatrix />}
+        {view === 'colorMatrix' && <ColorMatrix userProfile={userProfile} wardrobe={wardrobe} />}
 
         {view === 'calendar' && <CalendarPlan />}
       </main>

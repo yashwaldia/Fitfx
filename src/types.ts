@@ -19,6 +19,8 @@ export interface Garment {
   image: string;
   material: string;
   color: string;
+  id?: string; 
+  uploadedAt?: string;
 }
 
 export interface OutfitIdea {
