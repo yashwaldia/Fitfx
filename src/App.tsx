@@ -23,8 +23,10 @@ import ColorMatrix from './components/ColorMatrix';
 import { requestNotificationPermission } from './components/Notifications';
 import logoImage from './images/logo.png';
 
+
 type View = 'stylist' | 'wardrobe' | 'editor' | 'colorMatrix' | 'calendar';
 type AuthStep = 'loading' | 'login' | 'profile' | 'loggedIn';
+
 
 const App: React.FC = () => {
   // Auth state
@@ -32,6 +34,7 @@ const App: React.FC = () => {
   const [authStep, setAuthStep] = useState<AuthStep>('loading');
   const [showSignup, setShowSignup] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+
 
   // App state
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -46,6 +49,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>('stylist');
   const [todaySuggestion, setTodaySuggestion] = useState<OutfitData | null>(null);
+
 
   // Check authentication state and load user data
   useEffect(() => {
@@ -95,8 +99,10 @@ const App: React.FC = () => {
       }
     });
 
+
     return () => unsubscribe();
   }, []);
+
 
   // Generate today's suggestion
   const generateTodaySuggestion = () => {
@@ -125,12 +131,14 @@ const App: React.FC = () => {
     }
   };
 
+
   // Handle profile creation and save to Firestore
   const handleProfileSave = async (profile: UserProfile) => {
     if (!userId) {
       console.error('No user logged in');
       return;
     }
+
 
     try {
       setAuthStep('loading');
@@ -164,6 +172,7 @@ const App: React.FC = () => {
     }
   };
 
+
   // Setup notifications
   const setupNotifications = async () => {
     try {
@@ -175,6 +184,7 @@ const App: React.FC = () => {
       console.error('Failed to set up notifications:', error);
     }
   };
+
 
   // Handle logout
   const handleLogout = async () => {
@@ -191,6 +201,7 @@ const App: React.FC = () => {
     }
   };
 
+
   // Handle color selection
   const handleColorSelect = (hex: string) => {
     setSelectedColors(prev => 
@@ -200,12 +211,14 @@ const App: React.FC = () => {
     );
   };
 
+
   // Handle adding garment to wardrobe with Firestore save
   const handleAddToWardrobe = async (garment: Garment) => {
     if (!userId) {
       console.error('No user logged in');
       return;
     }
+
 
     try {
       // Save to Firestore
@@ -219,12 +232,14 @@ const App: React.FC = () => {
     }
   };
 
+
   // Handle updating wardrobe item with Firestore update
   const handleUpdateWardrobe = async (index: number, updatedGarment: Garment) => {
     if (!userId) {
       console.error('No user logged in');
       return;
     }
+
 
     try {
       // Update in Firestore
@@ -240,12 +255,14 @@ const App: React.FC = () => {
     }
   };
 
+
   // Handle deleting wardrobe item with Firestore delete
   const handleDeleteFromWardrobe = async (index: number) => {
     if (!userId) {
       console.error('No user logged in');
       return;
     }
+
 
     try {
       // Delete from Firestore
@@ -260,6 +277,7 @@ const App: React.FC = () => {
     }
   };
 
+
   // Handle style advice submission
   const handleSubmit = useCallback(async () => {
     if (!uploadedImage) {
@@ -267,13 +285,16 @@ const App: React.FC = () => {
       return;
     }
 
+
     if (!age || !gender) {
       setError('Please fill in all details');
       return;
     }
 
+
     setIsLoading(true);
     setError(null);
+
 
     try {
       const advice = await getStyleAdvice(
@@ -295,10 +316,107 @@ const App: React.FC = () => {
     }
   }, [uploadedImage, occasion, style, age, gender, selectedColors, wardrobe, userProfile]);
 
+
+  // ==================== RENDER FUNCTIONS ====================
+  
+  const renderStylistView = () => (
+    <div className="space-y-8">
+      <TodaySuggestion 
+        suggestion={todaySuggestion} 
+        onViewCalendar={() => setView('calendar')}
+      />
+
+      {!styleAdvice && !isLoading && (
+        <div className="space-y-8 animate-fade-in-up">
+          <SelfieUploader 
+            onImageUpload={setUploadedImage}
+            uploadedImage={uploadedImage}
+          />
+          
+          {/* Only show these if image is uploaded */}
+          {uploadedImage && (
+            <>
+              <UserDetailsSelector
+                age={age}
+                gender={gender}
+                setAge={setAge}
+                setGender={setGender}
+              />
+              <StyleSelector
+                occasion={occasion}
+                setOccasion={setOccasion}
+                style={style}
+                setStyle={setStyle}
+              />
+              <ColorSelector
+                selectedColors={selectedColors}
+                onColorSelect={handleColorSelect}
+              />
+              
+              <div className="text-center">
+                <button
+                  onClick={handleSubmit}
+                  disabled={isLoading}
+                  className="group relative inline-flex items-center justify-center px-8 py-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-gray-900 font-semibold rounded-full shadow-lg shadow-yellow-500/30 transition-all duration-300 ease-in-out hover:scale-105 hover:shadow-xl hover:shadow-yellow-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <SparklesIcon className="w-6 h-6 mr-2 transition-transform duration-300 group-hover:rotate-12" />
+                  Get Style Advice
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {isLoading && <Loader />}
+      
+      {error && !isLoading && (
+        <p className="text-center text-red-400 bg-red-900/50 p-4 rounded-lg">{error}</p>
+      )}
+
+      {styleAdvice && !isLoading && (
+        <AIResultDisplay 
+          advice={styleAdvice}
+          image={uploadedImage}
+          onReset={() => {
+            setStyleAdvice(null);
+            setUploadedImage(null);
+            setError(null);
+          }}
+        />
+      )}
+    </div>
+  );
+
+  const renderWardrobeView = () => (
+    <WardrobeUploader 
+      wardrobe={wardrobe} 
+      onAddToWardrobe={handleAddToWardrobe}
+      onUpdateWardrobe={handleUpdateWardrobe}
+      onDeleteFromWardrobe={handleDeleteFromWardrobe}
+    />
+  );
+
+  const renderEditorView = () => (
+    <ImageEditor />
+  );
+
+  const renderColorMatrixView = () => (
+    <ColorMatrix userProfile={userProfile} wardrobe={wardrobe} />
+  );
+
+  const renderCalendarView = () => (
+    <CalendarPlan />
+  );
+
+  // ==========================================================
+
+
   // Render loading state
   if (authStep === 'loading') {
     return <Loader />;
   }
+
 
   // Render login/signup
   if (authStep === 'login') {
@@ -315,10 +433,12 @@ const App: React.FC = () => {
     );
   }
 
+
   // Render profile creation
   if (authStep === 'profile') {
     return <ProfileCreation onProfileSave={handleProfileSave} />;
   }
+
 
   // Main app UI
   return (
@@ -410,98 +530,11 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {view === 'stylist' && (
-          <div className="space-y-8">
-            <TodaySuggestion 
-              suggestion={todaySuggestion} 
-              onViewCalendar={() => setView('calendar')}
-            />
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="space-y-6">
-                <SelfieUploader 
-                  onImageUpload={setUploadedImage}
-                  uploadedImage={uploadedImage}
-                />
-                <StyleSelector
-                  occasion={occasion}
-                  setOccasion={setOccasion}
-                  style={style}
-                  setStyle={setStyle}
-                />
-                <UserDetailsSelector
-                  age={age}
-                  gender={gender}
-                  setAge={setAge}
-                  setGender={setGender}
-                />
-                <ColorSelector
-                  selectedColors={selectedColors}
-                  onColorSelect={handleColorSelect}
-                />
-
-                <button
-                  onClick={handleSubmit}
-                  disabled={isLoading || !uploadedImage}
-                  className="w-full group relative inline-flex items-center justify-center px-8 py-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-gray-900 font-semibold rounded-full shadow-lg transition-all duration-300 ease-in-out hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader />
-                      <span className="ml-2">Analyzing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <SparklesIcon className="w-5 h-5 mr-2" />
-                      Get Style Advice
-                    </>
-                  )}
-                </button>
-
-                {error && (
-                  <div className="bg-red-500/20 border border-red-500 text-red-200 px-4 py-3 rounded-xl">
-                    {error}
-                  </div>
-                )}
-              </div>
-
-              <div className="lg:sticky lg:top-24 h-fit">
-                {styleAdvice ? (
-                  <AIResultDisplay 
-                    advice={styleAdvice}
-                    image={uploadedImage}
-                    onReset={() => {
-                      setStyleAdvice(null);
-                      setUploadedImage(null);
-                    }}
-                  />
-                ) : (
-                  <div className="bg-gray-800/50 rounded-2xl p-8 border border-gray-700 text-center">
-                    <SparklesIcon className="w-16 h-16 mx-auto mb-4 text-yellow-400 opacity-50" />
-                    <p className="text-gray-400">
-                      Upload a selfie and get personalized style advice!
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {view === 'wardrobe' && (
-          <WardrobeUploader 
-            wardrobe={wardrobe} 
-            onAddToWardrobe={handleAddToWardrobe}
-            onUpdateWardrobe={handleUpdateWardrobe}
-            onDeleteFromWardrobe={handleDeleteFromWardrobe}
-          />
-        )}
-
-        {view === 'editor' && <ImageEditor />}
-
-        {view === 'colorMatrix' && <ColorMatrix userProfile={userProfile} wardrobe={wardrobe} />}
-
-        {view === 'calendar' && <CalendarPlan />}
+        {view === 'stylist' && renderStylistView()}
+        {view === 'wardrobe' && renderWardrobeView()}
+        {view === 'editor' && renderEditorView()}
+        {view === 'colorMatrix' && renderColorMatrixView()}
+        {view === 'calendar' && renderCalendarView()}
       </main>
 
       {/* Chatbot */}
@@ -509,5 +542,6 @@ const App: React.FC = () => {
     </div>
   );
 };
+
 
 export default App;
