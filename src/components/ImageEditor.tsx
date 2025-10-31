@@ -195,7 +195,7 @@ Return ONLY the edited image as a visual output. Make the changes look realistic
 
         {uniqueMaterials.length > 0 && (
           <div className="text-left space-y-2">
-            <p className="text-gray-300 text-sm">Cloths Materials:</p>
+            <p className="text-gray-300 text-sm">Clothes Materials:</p>
             <div className="flex flex-wrap gap-2">
               {uniqueMaterials.map((material) => (
                 <button
