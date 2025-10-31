@@ -398,7 +398,7 @@ const App: React.FC = () => {
   );
 
   const renderEditorView = () => (
-    <ImageEditor />
+  <ImageEditor wardrobe={wardrobe} />
   );
 
   const renderColorMatrixView = () => (
@@ -408,6 +408,13 @@ const App: React.FC = () => {
   const renderCalendarView = () => (
     <CalendarPlan />
   );
+
+  const renderImageEditorView = () => (
+  <ImageEditor wardrobe={wardrobe} />
+  );
+
+  // Or in your main render section:
+  {view === 'editor' && <ImageEditor wardrobe={wardrobe} />}
 
   // ==========================================================
 
@@ -473,7 +480,7 @@ const App: React.FC = () => {
                 }`}
               >
                 <WardrobeIcon className="w-5 h-5" />
-                <span>Wardrobe</span>
+                <span>My Wardrobe</span>
               </button>
 
               <button

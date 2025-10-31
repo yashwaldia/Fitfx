@@ -125,12 +125,12 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
                     {wardrobe.map((item, index) => (
                         <div 
                             key={index} 
-                            className="relative bg-gray-800 rounded-lg overflow-hidden shadow-lg hover:shadow-yellow-400/20 transition-all duration-300 hover:scale-105 border border-gray-700 hover:border-yellow-400/50 group"
+                            className="group relative bg-gray-800 rounded-lg overflow-hidden cursor-pointer hover:shadow-lg hover:shadow-yellow-400/20 transition-all duration-300 aspect-square"
                         >
                             <img 
                                 src={item.image} 
                                 alt={`${item.color} ${item.material} item`} 
-                                className="w-full h-32 object-cover cursor-pointer" 
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                                 onClick={() => handlePreview(item.image)}
                             />
                             
@@ -164,8 +164,9 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
                                 </div>
                             )}
 
-                            <div className="p-2 text-center">
-                                <p className="text-sm font-semibold text-yellow-400">{item.color}</p>
+                            {/* Color and Material Labels */}
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-900 to-transparent p-3">
+                                <p className="text-sm text-yellow-400 font-semibold">{item.color}</p>
                                 <p className="text-xs text-gray-400">{item.material}</p>
                             </div>
                         </div>

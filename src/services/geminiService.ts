@@ -2,9 +2,13 @@ import { GoogleGenAI, Type, Modality, Chat } from "@google/genai";
 import type { Occasion, Style, StyleAdvice, Gender, Garment, UserProfile } from '../types';
 
 const API_KEY = process.env.REACT_APP_GEMINI_API;
+const IMAGE_API_KEY = process.env.REACT_APP_GEMINI_IMAGE_API;
 
-
+// Main AI instance for style advice and chat (uses REACT_APP_GEMINI_API)
 const ai = new GoogleGenAI({ apiKey: API_KEY || "" });
+
+// Separate AI instance for image editing (uses REACT_APP_GEMINI_IMAGE_API)
+const imageAI = new GoogleGenAI({ apiKey: IMAGE_API_KEY || API_KEY || "" });
 
 const fileToGenerativePart = (base64: string, mimeType: string) => {
   return {
@@ -158,13 +162,14 @@ export const editImage = async (
   imageBase64: string,
   prompt: string
 ): Promise<string> => {
-  const model = 'gemini-2.0-flash-exp';
+  const model = 'gemini-exp-1206';
 
   const mimeType = getMimeTypeFromBase64(imageBase64);
   const imagePart = fileToGenerativePart(imageBase64, mimeType);
   const textPart = { text: prompt };
 
-  const response = await ai.models.generateContent({
+  // UPDATED: Use imageAI (separate API key) for image editing
+  const response = await imageAI.models.generateContent({
     model: model,
     contents: { parts: [imagePart, textPart] },
     config: {

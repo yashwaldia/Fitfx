@@ -8,18 +8,18 @@ export type Occasion = 'Professional' | 'Party' | 'Casual' | 'Other';
 export type Style = 'American' | 'Indian' | 'Fusion' | 'Other';
 export type Gender = 'Male' | 'Female' | 'Unisex' | 'Kids';
 export type AgeGroup = 'Teen (13-17)' | 'Young Adult (18-25)' | 'Adult (26-35)' | 'Middle-Aged (36-45)' | 'Senior (46+)';
-export type BodyType = 
+
+export type BodyType =
   'Rectangle' | 'Triangle' | 'Inverted Triangle' | 'Hourglass' | 'Round (Apple)' |
   'Pear' | 'Athletic' | 'Slim / Lean' | 'Petite' | 'Tall' | 'Curvy' | 'Oval' |
   'Straight / Column' | 'Diamond' | 'Muscular / V Shape' | 'Lollipop' |
   'Skittle' | 'Top Hourglass' | 'Bottom Hourglass' | 'Plus Size';
 
-
 export interface Garment {
-  image: string;
+  image: string;  // ✅ Keep image field
   material: string;
   color: string;
-  id?: string; 
+  id?: string;
   uploadedAt?: string;
 }
 
@@ -36,7 +36,7 @@ export interface StyleAdvice {
   fashionSummary: string;
   colorPalette: ColorPaletteItem[];
   outfitIdeas: OutfitIdea[];
-  wardrobeOutfitIdeas?: OutfitIdea[]; // New optional property
+  wardrobeOutfitIdeas?: OutfitIdea[];
   materialAdvice: string;
   motivationalNote: string;
 }
@@ -49,7 +49,7 @@ export interface ChatMessage {
 export interface UserProfile {
   profilePhoto?: string;
   name: string;
-  age: string; // Can be an AgeGroup or a specific number for 'Kids'
+  age: string;
   gender: Gender;
   bodyType?: BodyType;
   preferredOccasions: Occasion[];
