@@ -14,6 +14,7 @@ import {
 import { getStyleAdvice } from './services/geminiService';
 import type { StyleAdvice, Occasion, Style, Gender, Garment, UserProfile, OutfitData, SubscriptionTier } from './types';
 
+
 // Components
 import SelfieUploader from './components/SelfieUploader';
 import StyleSelector from './components/StyleSelector';
@@ -32,15 +33,32 @@ import ProfileCreation from './components/ProfileCreation';
 import TodaySuggestion from './components/TodaySuggestion';
 import ColorMatrix from './components/ColorMatrix';
 
+
 // ✅ NEW: Subscription components
 import PlanSelectionModal from './components/PlanSelectionModal';
 import SubscriptionManager from './components/SubscriptionManager';
 
+
 import { requestNotificationPermission } from './components/Notifications';
 import logoImage from './images/logo.png';
 
+
 type View = 'stylist' | 'wardrobe' | 'editor' | 'colorMatrix' | 'calendar' | 'settings';
 type AuthStep = 'loading' | 'login' | 'profile' | 'loggedIn';
+// ✅ TEMPORARY: Environment Variables Test (Remove after verification)
+if (typeof window !== 'undefined') {
+  console.log('=== LEMON SQUEEZY ENV VARIABLES ===');
+  console.log('REACT_APP_LEMON_STORE_ID:', process.env.REACT_APP_LEMON_STORE_ID);
+  console.log('REACT_APP_LEMON_STYLE_PLUS_VARIANT_ID:', process.env.REACT_APP_LEMON_STYLE_PLUS_VARIANT_ID);
+  console.log('REACT_APP_LEMON_STYLE_X_VARIANT_ID:', process.env.REACT_APP_LEMON_STYLE_X_VARIANT_ID);
+  console.log('=== All env vars loaded? ===');
+  const allLoaded = 
+    process.env.REACT_APP_LEMON_STORE_ID &&
+    process.env.REACT_APP_LEMON_STYLE_PLUS_VARIANT_ID &&
+    process.env.REACT_APP_LEMON_STYLE_X_VARIANT_ID;
+  console.log(allLoaded ? '✅ YES - Ready to use!' : '❌ NO - Check .env.local');
+}
+
 
 const App: React.FC = () => {
   // Auth state
@@ -50,11 +68,13 @@ const App: React.FC = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
 
+
   // ✅ NEW: Subscription state
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [isSelectingPlan, setIsSelectingPlan] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
 
   // App state
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -69,6 +89,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>('stylist');
   const [todaySuggestion, setTodaySuggestion] = useState<OutfitData | null>(null);
+
 
   // Check authentication state and load user data
   useEffect(() => {
@@ -129,8 +150,10 @@ const App: React.FC = () => {
       }
     });
 
+
     return () => unsubscribe();
   }, []);
+
 
   // Generate today's suggestion
   const generateTodaySuggestion = () => {
@@ -159,12 +182,14 @@ const App: React.FC = () => {
     }
   };
 
+
   // Handle profile creation and save to Firestore
   const handleProfileSave = async (profile: UserProfile) => {
     if (!userId) {
       console.error('No user logged in');
       return;
     }
+
 
     try {
       setAuthStep('loading');
@@ -210,6 +235,7 @@ const App: React.FC = () => {
     }
   };
 
+
   // Setup notifications
   const setupNotifications = async () => {
     try {
@@ -222,11 +248,13 @@ const App: React.FC = () => {
     }
   };
 
+
   // ✅ NEW: Handle plan selection
   const handlePlanSelect = async (tier: SubscriptionTier) => {
     setIsSelectingPlan(true);
     try {
       if (!userId) throw new Error('No user ID');
+
 
       if (tier === 'free') {
         // Free tier - just close modal
@@ -241,11 +269,13 @@ const App: React.FC = () => {
         const variantId = getVariantIdFromTier(tier);
         if (!variantId) throw new Error('Invalid plan configuration');
 
+
         await openLemonCheckout({
           variantId,
           email: user?.email || 'user@example.com',
           customData: { user_id: userId },
         });
+
 
         // Mark modal as seen
         await markPlanModalSeen(userId);
@@ -259,14 +289,22 @@ const App: React.FC = () => {
     }
   };
 
+
   // ✅ NEW: Handle subscription update
   const handleSubscriptionUpdated = async (newTier: SubscriptionTier) => {
     setSubscriptionTier(newTier);
-    if (userProfile) {
+    if (userProfile?.subscription) {
       userProfile.subscription.tier = newTier;
       setUserProfile({ ...userProfile });
     }
   };
+
+
+  // ✅ NEW: Handle opening plan modal from anywhere
+  const handleOpenPlanModal = () => {
+    setShowPlanModal(true);
+  };
+
 
   // Handle logout
   const handleLogout = async () => {
@@ -287,6 +325,7 @@ const App: React.FC = () => {
     }
   };
 
+
   // Handle color selection
   const handleColorSelect = (hex: string) => {
     setSelectedColors(prev => 
@@ -296,12 +335,14 @@ const App: React.FC = () => {
     );
   };
 
+
   // Handle adding garment to wardrobe with Firestore save
   const handleAddToWardrobe = async (garment: Garment) => {
     if (!userId) {
       console.error('No user logged in');
       return;
     }
+
 
     try {
       // ✅ NEW: Check subscription limit for wardrobe
@@ -312,6 +353,7 @@ const App: React.FC = () => {
         setError(`Wardrobe limit (${limits.wardrobeLimit} items) reached. Upgrade to add more items.`);
         return;
       }
+
 
       // Save to Firestore
       await addWardrobeItem(userId, garment);
@@ -324,12 +366,14 @@ const App: React.FC = () => {
     }
   };
 
+
   // Handle updating wardrobe item with Firestore update
   const handleUpdateWardrobe = async (index: number, updatedGarment: Garment) => {
     if (!userId) {
       console.error('No user logged in');
       return;
     }
+
 
     try {
       // Update in Firestore
@@ -345,12 +389,14 @@ const App: React.FC = () => {
     }
   };
 
+
   // Handle deleting wardrobe item with Firestore delete
   const handleDeleteFromWardrobe = async (index: number) => {
     if (!userId) {
       console.error('No user logged in');
       return;
     }
+
 
     try {
       // Delete from Firestore
@@ -365,6 +411,7 @@ const App: React.FC = () => {
     }
   };
 
+
   // Handle style advice submission
   const handleSubmit = useCallback(async () => {
     if (!uploadedImage) {
@@ -372,13 +419,16 @@ const App: React.FC = () => {
       return;
     }
 
+
     if (!age || !gender) {
       setError('Please fill in all details');
       return;
     }
 
+
     setIsLoading(true);
     setError(null);
+
 
     try {
       const advice = await getStyleAdvice(
@@ -400,6 +450,7 @@ const App: React.FC = () => {
     }
   }, [uploadedImage, occasion, style, age, gender, selectedColors, wardrobe, userProfile]);
 
+
   // ==================== RENDER FUNCTIONS ====================
   
   const renderStylistView = () => (
@@ -408,6 +459,7 @@ const App: React.FC = () => {
         suggestion={todaySuggestion} 
         onViewCalendar={() => setView('calendar')}
       />
+
 
       {!styleAdvice && !isLoading && (
         <div className="space-y-8 animate-fade-in-up">
@@ -451,11 +503,13 @@ const App: React.FC = () => {
         </div>
       )}
 
+
       {isLoading && <Loader />}
       
       {error && !isLoading && (
         <p className="text-center text-red-400 bg-red-900/50 p-4 rounded-lg">{error}</p>
       )}
+
 
       {styleAdvice && !isLoading && (
         <AIResultDisplay 
@@ -471,6 +525,7 @@ const App: React.FC = () => {
     </div>
   );
 
+
   const renderWardrobeView = () => (
     <WardrobeUploader 
       wardrobe={wardrobe} 
@@ -480,36 +535,44 @@ const App: React.FC = () => {
     />
   );
 
+
   const renderEditorView = () => (
     <ImageEditor wardrobe={wardrobe} />
   );
+
 
   const renderColorMatrixView = () => (
     <ColorMatrix userProfile={userProfile} wardrobe={wardrobe} />
   );
 
+
   const renderCalendarView = () => (
     <CalendarPlan />
   );
 
-  // ✅ NEW: Render settings view with proper props
+
+  // ✅ UPDATED: Render settings view with modal trigger prop
   const renderSettingsView = () => (
-    userProfile && user && (
+    userProfile?.subscription && user && (  // ✅ Added null check for subscription
       <SubscriptionManager 
         userProfile={userProfile}
         userEmail={user.email}       // ✅ Pass Firebase auth email
         userId={user.uid}            // ✅ Pass Firebase auth UID
         onSubscriptionUpdated={handleSubscriptionUpdated}
+        onOpenPlanModal={handleOpenPlanModal} // ✅ NEW: Pass modal trigger function
       />
     )
   );
 
+
   // ==========================================================
+
 
   // Render loading state
   if (authStep === 'loading') {
     return <Loader />;
   }
+
 
   // Render login/signup
   if (authStep === 'login') {
@@ -526,10 +589,12 @@ const App: React.FC = () => {
     );
   }
 
+
   // Render profile creation
   if (authStep === 'profile') {
     return <ProfileCreation onProfileSave={handleProfileSave} />;
   }
+
 
   // Main app UI
   return (
@@ -540,6 +605,7 @@ const App: React.FC = () => {
         onPlanSelect={handlePlanSelect}
         isLoading={isSelectingPlan}
       />
+
 
       {/* Header */}
       <header className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 sticky top-0 z-50">
@@ -563,6 +629,7 @@ const App: React.FC = () => {
               </span>
             </div>
 
+
             <nav className="hidden md:flex items-center gap-6">
               <button
                 onClick={() => setView('stylist')}
@@ -574,6 +641,7 @@ const App: React.FC = () => {
                 <span>Selfie Stylist</span>
               </button>
 
+
               <button
                 onClick={() => setView('wardrobe')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
@@ -583,6 +651,7 @@ const App: React.FC = () => {
                 <WardrobeIcon className="w-5 h-5" />
                 <span>My Wardrobe</span>
               </button>
+
 
               <button
                 onClick={() => setView('editor')}
@@ -594,6 +663,7 @@ const App: React.FC = () => {
                 <span>Image Editor</span>
               </button>
 
+
               <button
                 onClick={() => setView('colorMatrix')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
@@ -603,6 +673,7 @@ const App: React.FC = () => {
                 <ColorSwatchIcon className="w-5 h-5" />
                 <span>Color Suggestion</span>
               </button>
+
 
               <button
                 onClick={() => setView('calendar')}
@@ -614,6 +685,7 @@ const App: React.FC = () => {
                 <span>Calendar</span>
               </button>
 
+
               {/* ✅ NEW: Settings button */}
               <button
                 onClick={() => setView('settings')}
@@ -624,7 +696,19 @@ const App: React.FC = () => {
                 <UserCircleIcon className="w-5 h-5" />
                 <span>Settings</span>
               </button>
+
+              {/* ✅ NEW: Upgrade Button in Header - Only for free tier users */}
+              {subscriptionTier === 'free' && (
+                <button
+                  onClick={handleOpenPlanModal}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-600 text-gray-900 font-bold hover:scale-105 transition-transform shadow-lg"
+                >
+                  <SparklesIcon className="w-5 h-5" />
+                  <span>Upgrade</span>
+                </button>
+              )}
             </nav>
+
 
             <div className="flex items-center gap-4">
               {userProfile && (
@@ -647,6 +731,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
+
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && (
@@ -656,6 +741,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+
         {view === 'stylist' && renderStylistView()}
         {view === 'wardrobe' && renderWardrobeView()}
         {view === 'editor' && renderEditorView()}
@@ -663,6 +749,7 @@ const App: React.FC = () => {
         {view === 'calendar' && renderCalendarView()}
         {view === 'settings' && renderSettingsView()}
       </main>
+
 
       {/* ✅ NEW: Logout Confirmation Modal */}
       {showLogoutConfirm && (
@@ -688,10 +775,12 @@ const App: React.FC = () => {
         </div>
       )}
 
+
       {/* Chatbot */}
       <Chatbot />
     </div>
   );
 };
+
 
 export default App;
