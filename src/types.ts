@@ -71,23 +71,26 @@ export interface ChatMessage {
   parts: string;
 }
 
-// ✅ UPDATED: UserProfile with Subscription
 export interface UserProfile {
-  profilePhoto?: string;
   name: string;
   age: string;
   gender: Gender;
-  bodyType?: BodyType;
   preferredOccasions: Occasion[];
   preferredStyles: Style[];
   favoriteColors: string[];
-  preferredFabrics?: string[];
-  fashionIcons?: string;
-  
-  // ✅ NEW: Subscription fields
-  subscription: Subscription;
-  hasSeenPlanModal?: boolean;         // Track if user has seen plan selection
+  profilePhoto?: string;
+  bodyType?: BodyType;
+  preferredFabrics: string[];
+  fashionIcons: string;
+  subscription?: {                  
+    tier: 'free' | 'style_plus' | 'style_x';
+    status: 'active' | 'cancelled';
+    subscriptionId?: string;
+    customerId?: string;
+    startDate?: string;
+  };
 }
+
 
 export interface OutfitData {
   "Colour Combination": string;
