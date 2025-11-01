@@ -10,33 +10,49 @@ export type Gender = 'Male' | 'Female' | 'Unisex' | 'Kids';
 export type AgeGroup = 'Teen (13-17)' | 'Young Adult (18-25)' | 'Adult (26-35)' | 'Middle-Aged (36-45)' | 'Senior (46+)';
 
 export type BodyType =
-  'Rectangle' | 'Triangle' | 'Inverted Triangle' | 'Hourglass' | 'Round (Apple)' |
-  'Pear' | 'Athletic' | 'Slim / Lean' | 'Petite' | 'Tall' | 'Curvy' | 'Oval' |
-  'Straight / Column' | 'Diamond' | 'Muscular / V Shape' | 'Lollipop' |
-  'Skittle' | 'Top Hourglass' | 'Bottom Hourglass' | 'Plus Size';
+  | 'Rectangle'
+  | 'Triangle'
+  | 'Inverted Triangle'
+  | 'Hourglass'
+  | 'Round (Apple)'
+  | 'Pear'
+  | 'Athletic'
+  | 'Slim / Lean'
+  | 'Petite'
+  | 'Tall'
+  | 'Curvy'
+  | 'Oval'
+  | 'Straight / Column'
+  | 'Diamond'
+  | 'Muscular / V Shape'
+  | 'Lollipop'
+  | 'Skittle'
+  | 'Top Hourglass'
+  | 'Bottom Hourglass'
+  | 'Plus Size';
 
-// ✅ NEW: Subscription Types
+// ✅ Subscription Types
 export type SubscriptionTier = 'free' | 'style_plus' | 'style_x';
 export type SubscriptionStatus = 'active' | 'cancelled' | 'past_due' | 'expired';
 
-// ✅ NEW: Subscription Interface
+// ✅ Subscription Interface
 export interface Subscription {
   tier: SubscriptionTier;
   status: SubscriptionStatus;
-  subscriptionId?: string;           // Lemon Squeezy subscription ID
-  customerId?: string;                // Lemon Squeezy customer ID
-  startDate?: string;                 // ISO timestamp
-  endDate?: string;                   // ISO timestamp
-  cancelAtPeriodEnd?: boolean;        // Will cancel at end of billing period
+  subscriptionId?: string; // Lemon Squeezy subscription ID
+  customerId?: string; // Lemon Squeezy customer ID
+  startDate?: string; // ISO timestamp
+  endDate?: string; // ISO timestamp
+  cancelAtPeriodEnd?: boolean; // Will cancel at end of billing period
 }
 
-// ✅ NEW: Feature Limits per Tier
+// ✅ Feature Limits per Tier
 export interface FeatureLimits {
-  colorSuggestions: number;           // Max color suggestions
-  outfitPreviews: number;             // Max outfit generations per request
-  wardrobeLimit: number;              // Max wardrobe items (0 = disabled, -1 = unlimited)
-  imageEditorAccess: boolean;         // Can access Image Editor
-  batchGeneration: boolean;           // Can generate multiple variations
+  colorSuggestions: number; // Max color suggestions
+  outfitPreviews: number; // Max outfit generations per request
+  wardrobeLimit: number; // Max wardrobe items (0 = disabled, -1 = unlimited)
+  imageEditorAccess: boolean; // Can access Image Editor
+  batchGeneration: boolean; // Can generate multiple variations
   chatbotAccess: 'basic' | 'standard' | 'premium';
 }
 
@@ -71,6 +87,7 @@ export interface ChatMessage {
   parts: string;
 }
 
+// ✅ MAIN USER PROFILE - WITH ALL REQUIRED PROPERTIES
 export interface UserProfile {
   name: string;
   age: string;
@@ -82,25 +99,19 @@ export interface UserProfile {
   bodyType?: BodyType;
   preferredFabrics: string[];
   fashionIcons: string;
-  subscription?: {                  
-    tier: 'free' | 'style_plus' | 'style_x';
-    status: 'active' | 'cancelled';
-    subscriptionId?: string;
-    customerId?: string;
-    startDate?: string;
-  };
+  hasSeenPlanModal?: boolean; // ✅ NEW: Track if user saw plan modal
+  subscription?: Subscription; // ✅ NEW: Uses the Subscription interface
 }
-
 
 export interface OutfitData {
-  "Colour Combination": string;
-  "T-Shirt/Shirt": string;
-  "Trousers/Bottom": string;
-  "Jacket/Layer": string;
-  "Shoes & Accessories": string;
+  'Colour Combination': string;
+  'T-Shirt/Shirt': string;
+  'Trousers/Bottom': string;
+  'Jacket/Layer': string;
+  'Shoes & Accessories': string;
 }
 
-// ✅ NEW: Plan Configuration
+// ✅ Plan Configuration
 export interface PlanConfig {
   tier: SubscriptionTier;
   name: string;
@@ -110,5 +121,5 @@ export interface PlanConfig {
   features: string[];
   limits: FeatureLimits;
   popular?: boolean;
-  lemonsqueezyVariantId?: string;     // For payment integration
+  lemonsqueezyVariantId?: string; // For payment integration
 }
