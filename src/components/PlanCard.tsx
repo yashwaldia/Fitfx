@@ -1,88 +1,107 @@
 import React from 'react';
-import { CheckCircleIcon } from './Icons';
 import type { PlanConfig } from '../types';
+import type { SubscriptionTier } from '../types';
 
 interface PlanCardProps {
   plan: PlanConfig;
-  isSelected?: boolean;
-  onSelect: (tier: string) => void;
+  isSelected: boolean;
+  onSelect: () => void;
   isLoading?: boolean;
 }
 
-const PlanCard: React.FC<PlanCardProps> = ({ plan, isSelected, onSelect, isLoading }) => {
-  const isFreeTier = plan.tier === 'free';
-  
+const PlanCard: React.FC<PlanCardProps> = ({
+  plan,
+  isSelected,
+  onSelect,
+  isLoading = false,
+}) => {
+  // ✅ FIXED: Dynamic price display (now reads from plan.price)
+  const displayPrice = plan.price === 0 ? '0' : plan.price.toString();
+
   return (
     <div
-      className={`relative rounded-2xl border-2 transition-all duration-300 ${
+      className={`relative rounded-xl border-2 transition-all duration-300 ${
         isSelected
-          ? 'border-yellow-400 bg-yellow-400/10 shadow-lg shadow-yellow-500/30'
-          : 'border-gray-600 bg-gray-800/50 hover:border-yellow-300'
-      } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} overflow-hidden`}
-      onClick={() => !isLoading && onSelect(plan.tier)}
+          ? 'border-yellow-400 bg-yellow-400/10 scale-105 shadow-lg shadow-yellow-400/30'
+          : 'border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800/70'
+      }`}
     >
-      {/* Popular Badge */}
-      {plan.popular && (
-        <div className="absolute top-0 right-0 bg-gradient-to-r from-yellow-400 to-yellow-600 text-gray-900 px-4 py-1 rounded-bl-lg font-bold text-sm">
-          Most Popular
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="p-6 space-y-4">
-        {/* Plan Name */}
-        <div>
+      <div className="p-6 flex flex-col h-full">
+        <div className="mb-4">
           <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
-          <div className="flex items-baseline gap-1">
-            <span className="text-4xl font-bold text-yellow-400">₹{plan.price}</span>
-            {!isFreeTier && <span className="text-gray-400">/month</span>}
-            {isFreeTier && <span className="text-gray-400 text-lg">Forever Free</span>}
+          
+          {/* ✅ Price - Dynamic from plan.price */}
+          <div className="flex items-baseline gap-1 mb-3">
+            <span className="text-4xl font-bold text-yellow-400">
+              ₹{displayPrice}
+            </span>
+            {plan.price > 0 && (
+              <span className="text-sm text-gray-400">/month</span>
+            )}
+          </div>
+
+          {plan.tier === 'style_plus' && (
+            <div className="inline-block bg-yellow-400 text-gray-900 px-3 py-1 rounded-full text-xs font-bold mb-3">
+              Most Popular
+            </div>
+          )}
+        </div>
+
+        <ul className="space-y-2 mb-6 flex-1">
+          {plan.features.map((feature, idx) => (
+            <li key={idx} className="flex items-start gap-2 text-sm text-gray-300">
+              <span className="text-yellow-400 font-bold mt-0.5">✓</span>
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+          <div className="text-xs text-gray-400 space-y-1">
+            {plan.tier === 'free' && (
+              <>
+                <p>🎨 5 Color Suggestions</p>
+                <p>👔 No Wardrobe Access</p>
+                <p>🖼️ No Image Editor</p>
+              </>
+            )}
+            {plan.tier === 'style_plus' && (
+              <>
+                <p>🎨 10 Color Suggestions</p>
+                <p>👔 10 Wardrobe Items</p>
+                <p>🖼️ AI Image Editor Access</p>
+              </>
+            )}
+            {plan.tier === 'style_x' && (
+              <>
+                <p>🎨 15 Color Suggestions</p>
+                <p>👔 Unlimited Wardrobe Items</p>
+                <p>🖼️ Batch Image Generation</p>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Features List */}
-        <div className="space-y-2 py-4 border-t border-b border-gray-700">
-          {plan.features.map((feature, idx) => (
-            <div key={idx} className="flex items-start gap-2">
-              <CheckCircleIcon className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-300">{feature}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* CTA Button */}
         <button
-          onClick={() => !isLoading && onSelect(plan.tier)}
+          onClick={onSelect}
           disabled={isLoading}
-          className={`w-full py-3 rounded-lg font-semibold transition-all duration-300 ${
-            isFreeTier
-              ? 'bg-gray-700 text-yellow-400 border border-yellow-400/50 hover:bg-gray-600'
-              : isSelected
-              ? 'bg-yellow-400 text-gray-900 hover:bg-yellow-500'
-              : 'bg-yellow-400 text-gray-900 hover:bg-yellow-500'
-          } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`w-full py-3 px-4 rounded-lg font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+            plan.tier === 'free'
+              ? 'bg-gray-700 hover:bg-gray-600 text-white border border-gray-600'
+              : 'bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold shadow-lg shadow-yellow-400/30 hover:shadow-xl hover:shadow-yellow-400/50'
+          } disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {isLoading ? (
-            <span className="flex items-center justify-center gap-2">
-              <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
+            <>
+              <span className="animate-spin">⏳</span>
               Processing...
-            </span>
-          ) : isFreeTier ? (
+            </>
+          ) : plan.tier === 'free' ? (
             'Continue with Free'
-          ) : isSelected ? (
-            '✓ Selected'
           ) : (
-            'Choose Plan'
+            `Choose ${plan.name}`
           )}
         </button>
-
-        {/* Limits Info */}
-        <div className="text-xs text-gray-400 space-y-1 pt-2">
-          <div>🎨 {plan.limits.colorSuggestions} Color Suggestions</div>
-          <div>👗 {plan.limits.wardrobeLimit === -1 ? 'Unlimited' : plan.limits.wardrobeLimit === 0 ? 'No Access' : plan.limits.wardrobeLimit} Wardrobe Items</div>
-          {plan.limits.imageEditorAccess && <div>✨ AI Image Editor Access</div>}
-          {plan.limits.batchGeneration && <div>🖼️ Batch Image Generation</div>}
-        </div>
       </div>
     </div>
   );
