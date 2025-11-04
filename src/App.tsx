@@ -143,6 +143,23 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (userId && authStep === 'loggedIn') {
+      const loadSubscription = async () => {
+        try {
+          const tier = await getUserSubscriptionTier(userId);
+          console.log('📊 Loaded subscription tier:', tier);
+          setSubscriptionTier(tier || 'free');
+        } catch (error) {
+          console.error('❌ Error loading subscription:', error);
+          setSubscriptionTier('free');
+        }
+      };
+      loadSubscription();
+    }
+  }, [userId, authStep]);
+
+
   // Generate today's suggestion
   const generateTodaySuggestion = () => {
     try {
@@ -485,7 +502,11 @@ const App: React.FC = () => {
   );
 
   const renderEditorView = () => (
-    <ImageEditor wardrobe={wardrobe} />
+    <ImageEditor 
+      wardrobe={wardrobe}
+      subscriptionTier={subscriptionTier}
+      onUpgradeClick={handleOpenPlanModal}
+    />
   );
 
   const renderColorMatrixView = () => (
