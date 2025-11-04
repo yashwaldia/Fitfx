@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, arrayUnion, deleteField } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import type { UserProfile, Garment, Subscription, SubscriptionTier } from '../types';
 
@@ -30,7 +30,7 @@ const initializeSubscription = (): Subscription => {
 };
 
 // Save user profile to Firestore
-// ✅ UPDATED: Include subscription
+// ✅ FIXED: Saves subscription at ROOT level (not nested in profile)
 export const saveUserProfile = async (userId: string, profile: UserProfile) => {
   try {
     const cleanedProfile = cleanProfile(profile);
@@ -38,16 +38,17 @@ export const saveUserProfile = async (userId: string, profile: UserProfile) => {
     // Ensure subscription exists
     const subscription = profile.subscription || initializeSubscription();
 
+    // ✅ FIXED: subscription at ROOT level, NOT inside profile
     await setDoc(doc(db, 'users', userId), {
-      profile: cleanedProfile,
-      subscription: subscription,  // ✅ NEW: Save subscription
+      profile: cleanedProfile,           // ← Profile data
+      subscription: subscription,         // ✅ ROOT level subscription
       wardrobe: [],
-      hasSeenPlanModal: profile.hasSeenPlanModal || false,  // ✅ NEW: Track plan modal
+      hasSeenPlanModal: profile.hasSeenPlanModal || false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
 
-    console.log('✅ Profile saved to Firestore with subscription');
+    console.log('✅ Profile saved to Firestore with subscription at ROOT level');
   } catch (error) {
     console.error('Error saving profile:', error);
     throw error;
@@ -55,7 +56,7 @@ export const saveUserProfile = async (userId: string, profile: UserProfile) => {
 };
 
 // Load user profile from Firestore
-// ✅ UPDATED: Include subscription initialization
+// ✅ FIXED: Loads subscription from ROOT level
 export const loadUserProfile = async (userId: string): Promise<UserProfile | null> => {
   try {
     const docRef = doc(db, 'users', userId);
@@ -65,22 +66,31 @@ export const loadUserProfile = async (userId: string): Promise<UserProfile | nul
       const data = docSnap.data();
       const profile = data.profile as UserProfile;
 
-      // ✅ NEW: Auto-initialize subscription if missing
-      if (!profile.subscription) {
-        console.log('Initializing subscription for user:', userId);
-        profile.subscription = initializeSubscription();
-        // Save the initialized subscription
+      // ✅ FIXED: Load subscription from ROOT level (NOT from profile)
+      console.log('📂 Full user data structure:', data);
+      
+      // Get subscription from ROOT level
+      const subscription = data.subscription || initializeSubscription();
+      
+      console.log('✅ Loaded subscription from ROOT level:', subscription);
+
+      // If subscription is missing at root, initialize and save it
+      if (!data.subscription) {
+        console.log('⚠️ Initializing missing subscription for user:', userId);
         await updateDoc(docRef, {
-          subscription: profile.subscription,
+          subscription: subscription,
           hasSeenPlanModal: false
         });
       }
 
-      // ✅ NEW: Load hasSeenPlanModal flag
+      // Attach subscription and other root-level fields to profile
       profile.hasSeenPlanModal = data.hasSeenPlanModal || false;
+      profile.subscription = subscription;
 
+      console.log('✅ Profile loaded successfully with tier:', subscription.tier);
       return profile;
     } else {
+      console.warn('⚠️ User document does not exist:', userId);
       return null;
     }
   } catch (error) {
@@ -89,7 +99,7 @@ export const loadUserProfile = async (userId: string): Promise<UserProfile | nul
   }
 };
 
-// ✅ NEW: Get subscription information
+// ✅ FIXED: Get subscription from ROOT level
 export const getSubscription = async (userId: string): Promise<Subscription | null> => {
   try {
     const docRef = doc(db, 'users', userId);
@@ -97,8 +107,23 @@ export const getSubscription = async (userId: string): Promise<Subscription | nu
 
     if (docSnap.exists()) {
       const data = docSnap.data();
-      return data.subscription || null;
+      
+      // ✅ FIXED: Get subscription from ROOT level (not from profile)
+      const subscription = data.subscription;
+      
+      console.log('✅ Fetched subscription from ROOT level:', subscription);
+      
+      if (!subscription) {
+        console.warn('⚠️ Subscription not found, initializing...');
+        const newSubscription = initializeSubscription();
+        await updateDoc(docRef, { subscription: newSubscription });
+        return newSubscription;
+      }
+      
+      return subscription;
     }
+    
+    console.warn('⚠️ User document not found:', userId);
     return null;
   } catch (error) {
     console.error('Error fetching subscription:', error);
@@ -106,7 +131,33 @@ export const getSubscription = async (userId: string): Promise<Subscription | nu
   }
 };
 
-// ✅ NEW: Update subscription tier (after payment)
+// ✅ NEW: Get subscription tier
+export const getUserSubscriptionTier = async (userId: string): Promise<SubscriptionTier> => {
+  try {
+    const subscription = await getSubscription(userId);
+    const tier = subscription?.tier || 'free';
+    console.log('✅ User subscription tier:', tier);
+    return tier;
+  } catch (error) {
+    console.error('Error getting subscription tier:', error);
+    return 'free';
+  }
+};
+
+// ✅ NEW: Check if user has premium subscription
+export const hasPremiumSubscription = async (userId: string): Promise<boolean> => {
+  try {
+    const tier = await getUserSubscriptionTier(userId);
+    const isPremium = ['style_plus', 'style_x'].includes(tier);
+    console.log('✅ Has premium subscription:', isPremium);
+    return isPremium;
+  } catch (error) {
+    console.error('Error checking premium subscription:', error);
+    return false;
+  }
+};
+
+// ✅ FIXED: Update subscription tier (after payment)
 export const updateSubscriptionTier = async (
   userId: string,
   tier: SubscriptionTier,
@@ -127,13 +178,15 @@ export const updateSubscriptionTier = async (
     };
 
     const docRef = doc(db, 'users', userId);
+    
+    // ✅ FIXED: Update subscription at ROOT level
     await updateDoc(docRef, {
-      subscription: subscription,
-      hasSeenPlanModal: true,  // Mark as seen after selection
+      subscription: subscription,  // ✅ ROOT level
+      hasSeenPlanModal: true,
       updatedAt: new Date().toISOString()
     });
 
-    console.log(`✅ Subscription updated to ${tier} for user ${userId}`);
+    console.log(`✅ Subscription updated to ${tier} at ROOT level for user ${userId}`);
     return subscription;
   } catch (error) {
     console.error('Error updating subscription:', error);
@@ -141,24 +194,12 @@ export const updateSubscriptionTier = async (
   }
 };
 
-// ✅ NEW: Mark plan modal as seen
-export const markPlanModalSeen = async (userId: string): Promise<void> => {
-  try {
-    const docRef = doc(db, 'users', userId);
-    await updateDoc(docRef, {
-      hasSeenPlanModal: true,
-      updatedAt: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Error marking plan modal as seen:', error);
-    throw error;
-  }
-};
-
-// ✅ NEW: Cancel subscription (downgrade to free)
+// ✅ FIXED: Cancel subscription (downgrade to free)
 export const cancelSubscription = async (userId: string): Promise<void> => {
   try {
     const docRef = doc(db, 'users', userId);
+    
+    // ✅ FIXED: Update subscription at ROOT level
     await updateDoc(docRef, {
       subscription: {
         tier: 'free',
@@ -175,25 +216,18 @@ export const cancelSubscription = async (userId: string): Promise<void> => {
   }
 };
 
-// ✅ NEW: Get user subscription tier
-export const getUserSubscriptionTier = async (userId: string): Promise<SubscriptionTier> => {
+// ✅ NEW: Mark plan modal as seen
+export const markPlanModalSeen = async (userId: string): Promise<void> => {
   try {
-    const subscription = await getSubscription(userId);
-    return subscription?.tier || 'free';
+    const docRef = doc(db, 'users', userId);
+    await updateDoc(docRef, {
+      hasSeenPlanModal: true,
+      updatedAt: new Date().toISOString()
+    });
+    console.log('✅ Plan modal marked as seen');
   } catch (error) {
-    console.error('Error getting subscription tier:', error);
-    return 'free';
-  }
-};
-
-// ✅ NEW: Check if user has premium subscription
-export const hasPremiumSubscription = async (userId: string): Promise<boolean> => {
-  try {
-    const tier = await getUserSubscriptionTier(userId);
-    return ['style_plus', 'style_x'].includes(tier);
-  } catch (error) {
-    console.error('Error checking premium subscription:', error);
-    return false;
+    console.error('Error marking plan modal as seen:', error);
+    throw error;
   }
 };
 
@@ -214,9 +248,11 @@ export const addWardrobeItem = async (userId: string, garment: Garment) => {
     if (!docSnap.exists()) {
       // Create document with wardrobe if it doesn't exist
       await setDoc(docRef, {
+        profile: {},
         wardrobe: [garmentWithMeta],
-        subscription: initializeSubscription(),  // ✅ NEW: Initialize subscription
+        subscription: initializeSubscription(),  // ✅ Initialize at ROOT level
         hasSeenPlanModal: false,
+        createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
     } else {
