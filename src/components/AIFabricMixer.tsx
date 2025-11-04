@@ -1,0 +1,312 @@
+import React, { useState, useRef } from 'react';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { addWatermark } from '../utils/canvasUtils';
+
+interface AIFabricMixerProps {
+  onError?: (error: string) => void;
+}
+
+const AIFabricMixer: React.FC<AIFabricMixerProps> = ({ onError }) => {
+  const [personImage, setPersonImage] = useState<string | null>(null);
+  const [fabricImage, setFabricImage] = useState<string | null>(null);
+  const [editedImage, setEditedImage] = useState<string | null>(null);
+  const [clothingPart, setClothingPart] = useState<'top' | 'bottom'>('top');
+  const [loading, setLoading] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [cameraTarget, setCameraTarget] = useState<'person' | 'fabric' | null>(null);
+  const [uploadTarget, setUploadTarget] = useState<'person' | 'fabric'>('person');
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 4 * 1024 * 1024) {
+        onError?.('❌ File is too large. Please upload an image under 4MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (uploadTarget === 'person') {
+          setPersonImage(reader.result as string);
+        } else {
+          setFabricImage(reader.result as string);
+        }
+        setEditedImage(null);
+      };
+      reader.onerror = () => onError?.('❌ Failed to read the image file.');
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadClick = (target: 'person' | 'fabric') => {
+    setUploadTarget(target);
+    fileInputRef.current?.click();
+  };
+
+  const startCamera = async (target: 'person' | 'fabric') => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        setCameraTarget(target);
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error('Error accessing camera:', err);
+      onError?.('❌ Could not access camera. Please ensure you have given permission.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCameraTarget(null);
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+      if (context) {
+        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        if (cameraTarget === 'person') {
+          setPersonImage(dataUrl);
+        } else {
+          setFabricImage(dataUrl);
+        }
+        setEditedImage(null);
+      }
+      stopCamera();
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!personImage) {
+      onError?.('❌ Please provide a photo of yourself.');
+      return;
+    }
+    if (!fabricImage) {
+      onError?.('❌ Please provide a photo of the fabric.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const generationPrompt = `Analyze the first image (the person) and the second image (the fabric/pattern). Redraw the ${clothingPart} of the person's outfit using the texture, color, and pattern from the fabric image. The fit and style of the clothing should remain the same. The person's face, body, hair, and other clothing items MUST be preserved perfectly. The background should also be preserved.`;
+
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('Gemini API key not configured');
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const base64Image1 = personImage.split(',')[1];
+      const base64Image2 = fabricImage.split(',')[1];
+
+      const response = await model.generateContent([
+        {
+          inlineData: {
+            data: base64Image1,
+            mimeType: 'image/jpeg',
+          },
+        },
+        {
+          inlineData: {
+            data: base64Image2,
+            mimeType: 'image/jpeg',
+          },
+        },
+        generationPrompt,
+      ]);
+
+      const result = await response.response;
+      if (result.candidates?.[0]?.content?.parts?.[0]) {
+        const part = result.candidates[0].content.parts[0];
+        if ('text' in part) {
+          setEditedImage(part.text as string);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      onError?.('❌ Failed to generate image. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!editedImage || isActionLoading) return;
+    setIsActionLoading(true);
+
+    try {
+      const watermarkedImage = await addWatermark(editedImage);
+      const link = document.createElement('a');
+      link.href = watermarkedImage;
+      link.download = 'fitfx-creation.jpg';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      console.error(e);
+      onError?.('❌ Failed to process image for download.');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <p className="text-center text-sm text-gray-400">Virtually try on any fabric. Upload a photo of yourself and a photo of the pattern.</p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Person Image */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-yellow-400 text-center">1. Your Photo</h3>
+          <div className="w-full aspect-square bg-gray-900/50 rounded-lg flex items-center justify-center overflow-hidden">
+            {personImage ? (
+              <img src={personImage} alt="Person" className="w-full h-full object-cover" />
+            ) : (
+              <p className="text-gray-500 text-4xl">👤</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleUploadClick('person')}
+              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900"
+            >
+              📤 Upload
+            </button>
+            <button
+              onClick={() => startCamera('person')}
+              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900"
+            >
+              📷 Photo
+            </button>
+          </div>
+        </div>
+
+        {/* Fabric Image */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-yellow-400 text-center">2. Fabric Photo</h3>
+          <div className="w-full aspect-square bg-gray-900/50 rounded-lg flex items-center justify-center overflow-hidden">
+            {fabricImage ? (
+              <img src={fabricImage} alt="Fabric" className="w-full h-full object-cover" />
+            ) : (
+              <p className="text-gray-500 text-4xl">🧵</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleUploadClick('fabric')}
+              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900"
+            >
+              📤 Upload
+            </button>
+            <button
+              onClick={() => startCamera('fabric')}
+              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900"
+            >
+              📷 Photo
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Clothing Part Selection */}
+      <div>
+        <h3 className="text-lg font-semibold text-yellow-400 text-center mb-2">3. Apply To</h3>
+        <div className="flex justify-center p-1 bg-gray-900 rounded-full max-w-xs mx-auto">
+          <button
+            onClick={() => setClothingPart('top')}
+            className={`w-full px-4 py-1.5 rounded-full text-sm font-semibold transition-colors duration-300 ${
+              clothingPart === 'top' ? 'bg-yellow-500 text-gray-900' : 'text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            Top
+          </button>
+          <button
+            onClick={() => setClothingPart('bottom')}
+            className={`w-full px-4 py-1.5 rounded-full text-sm font-semibold transition-colors duration-300 ${
+              clothingPart === 'bottom' ? 'bg-yellow-500 text-gray-900' : 'text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            Bottom
+          </button>
+        </div>
+      </div>
+
+      {/* Result */}
+      <div>
+        <h3 className="text-lg font-semibold text-yellow-400 text-center mb-4">4. AI Generated Image</h3>
+        <div className="bg-gray-900/50 rounded-lg flex items-center justify-center flex-col p-4 w-full aspect-square">
+          {loading ? (
+            <div className="text-center space-y-2">
+              <div className="inline-block animate-spin text-2xl">🔄</div>
+              <p className="text-gray-400">Generating your image...</p>
+            </div>
+          ) : editedImage ? (
+            <>
+              <img src={editedImage} alt="Generated result" className="rounded-lg w-full h-auto object-contain max-h-[50vh]" />
+              <button
+                onClick={handleDownload}
+                disabled={isActionLoading}
+                className="mt-4 inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 transition-all hover:bg-yellow-400 hover:text-gray-900 disabled:opacity-50"
+              >
+                ⬇️ Download
+              </button>
+            </>
+          ) : (
+            <p className="text-gray-500">Your new look will appear here</p>
+          )}
+        </div>
+      </div>
+
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/png, image/jpeg" className="hidden" />
+      <canvas ref={canvasRef} className="hidden"></canvas>
+
+      <button
+        onClick={handleGenerate}
+        disabled={loading || !personImage || !fabricImage}
+        className="w-full bg-yellow-400 text-gray-900 font-bold py-3 px-6 rounded-lg hover:bg-yellow-300 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-lg"
+      >
+        {loading ? '🔄 Processing...' : '🎨 Generate Fabric Mix'}
+      </button>
+
+      {/* Camera Modal */}
+      {cameraTarget && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 p-4 rounded-lg shadow-xl max-w-2xl w-full">
+            <video ref={videoRef} autoPlay playsInline className="w-full h-auto rounded"></video>
+            <div className="flex justify-center gap-4 mt-4">
+              <button
+                onClick={takePhoto}
+                className="px-6 py-2 bg-yellow-500 text-gray-900 font-semibold rounded-full hover:bg-yellow-400 transition-colors"
+              >
+                📸 Take Picture
+              </button>
+              <button
+                onClick={stopCamera}
+                className="px-6 py-2 bg-gray-600 text-white font-semibold rounded-full hover:bg-gray-500 transition-colors"
+              >
+                ✕ Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default AIFabricMixer;
