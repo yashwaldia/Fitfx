@@ -498,6 +498,8 @@ const App: React.FC = () => {
       onAddToWardrobe={handleAddToWardrobe}
       onUpdateWardrobe={handleUpdateWardrobe}
       onDeleteFromWardrobe={handleDeleteFromWardrobe}
+      subscriptionTier={'free'}
+      subscriptionEndDate={undefined}
     />
   );
 
@@ -565,6 +567,8 @@ const App: React.FC = () => {
         onPlanSelect={handlePlanSelect}
         isLoading={isSelectingPlan}
         onClose={() => setShowPlanModal(false)}
+        currentTier={subscriptionTier} // ✅ ADD THIS LINE - CRITICAL!
+
       />
 
       {/* ✅ RESPONSIVE HEADER/NAVBAR */}
@@ -740,7 +744,10 @@ const App: React.FC = () => {
       )}
 
       {/* Chatbot */}
-      <Chatbot />
+      <Chatbot
+        subscriptionTier={subscriptionTier} // Pass from your auth/state
+        userId={userId || 'guest-user'} // Pass from your auth
+      />
     </div>
   );
 };

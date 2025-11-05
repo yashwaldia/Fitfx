@@ -1,13 +1,10 @@
 import { GoogleGenAI, Type, Modality, Chat } from "@google/genai";
-import type { Occasion, Style, StyleAdvice, Gender, Garment, UserProfile } from '../types';
+import type { Occasion, Style, StyleAdvice, Gender, Garment, UserProfile, SubscriptionTier } from '../types';
 
 const API_KEY = process.env.REACT_APP_GEMINI_API;
 const IMAGE_API_KEY = process.env.REACT_APP_GEMINI_IMAGE_API;
 
-// Main AI instance for style advice and chat (uses REACT_APP_GEMINI_API)
 const ai = new GoogleGenAI({ apiKey: API_KEY || "" });
-
-// Separate AI instance for image editing (uses REACT_APP_GEMINI_IMAGE_API)
 const imageAI = new GoogleGenAI({ apiKey: IMAGE_API_KEY || API_KEY || "" });
 
 const fileToGenerativePart = (base64: string, mimeType: string) => {
@@ -58,7 +55,7 @@ const styleAdviceSchema = {
         },
         outfitIdeas: {
             type: Type.ARRAY,
-            description: "An array of 3 to 5 distinct, new outfit suggestions.",
+            description: "An array of outfit suggestions.",
             items: outfitIdeaSchema
         },
         wardrobeOutfitIdeas: {
@@ -78,6 +75,16 @@ const styleAdviceSchema = {
     required: ["fashionSummary", "colorPalette", "outfitIdeas", "wardrobeOutfitIdeas", "materialAdvice", "motivationalNote"]
 };
 
+// NEW: Subscription-aware outfit count
+const getOutfitCount = (tier: SubscriptionTier): number => {
+  switch(tier) {
+    case 'free': return 3;
+    case 'style_plus': return 999; // Unlimited (practical limit)
+    case 'style_x': return 999;    // Unlimited (practical limit)
+    default: return 3;
+  }
+};
+
 export const getStyleAdvice = async (
   imageBase64: string,
   occasion: Occasion,
@@ -86,7 +93,8 @@ export const getStyleAdvice = async (
   gender: Gender,
   preferredColors: string[],
   wardrobe: Garment[],
-  userProfile?: UserProfile | null
+  userProfile?: UserProfile | null,
+  subscriptionTier: SubscriptionTier = 'free'
 ): Promise<StyleAdvice> => {
   const model = 'gemini-2.0-flash-exp';
   
@@ -110,6 +118,11 @@ export const getStyleAdvice = async (
         ${userProfile.fashionIcons ? `- Admired Fashion Icons: ${userProfile.fashionIcons}` : ''}
     ` : '';
 
+  const outfitCount = getOutfitCount(subscriptionTier);
+  const outfitDescription = subscriptionTier === 'free' 
+    ? `3 distinct and complete` 
+    : `as many distinct and complete as you can generate (at least 5)`;
+
   const textPart = {
     text: `
       You are FitFx, a world-class AI fashion stylist. Your goal is to provide personalized, visually descriptive, and inspiring fashion advice.
@@ -128,7 +141,7 @@ export const getStyleAdvice = async (
       **Instructions:**
       1.  **Analyze & Summarize:** In 'fashionSummary', write a warm, personalized paragraph. Mention their likely skin undertone and suggest colors that would be flattering, keeping their age, gender, and **body type** in mind for appropriate recommendations on silhouettes and fits. If the user provided preferred colors, acknowledge them.
       2.  **Create Color Palette:** Based on the selfie's dominant colors (hair, skin, background) and your recommended outfits, create a 'colorPalette' of exactly 5 key colors. Prioritize including the user's preferred colors if they are flattering. For each, provide a name, hex code, and a brief 'description' explaining why it's a great choice for the user.
-      3.  **Create General Outfit Ideas:** Provide 3 to 5 distinct and complete *new* outfit ideas in the 'outfitIdeas' array. Each idea must be practical, stylish, and appropriate for the user's age, gender, and **body type**. Try to incorporate the user's preferred colors and **fabrics** into these outfits where they fit well. For 'suggestedPairingItems', list specific clothing items (e.g., "navy blue blazer, crisp white shirt, tan chinos").
+      3.  **Create General Outfit Ideas:** Provide ${outfitDescription} new outfit ideas in the 'outfitIdeas' array. Each idea must be practical, stylish, and appropriate for the user's age, gender, and **body type**. Try to incorporate the user's preferred colors and **fabrics** into these outfits where they fit well. For 'suggestedPairingItems', list specific clothing items (e.g., "navy blue blazer, crisp white shirt, tan chinos").
       4.  **Create Outfits From Wardrobe:** If the user's wardrobe is not empty, create 1 to 3 outfit ideas in the 'wardrobeOutfitIdeas' array. These outfits MUST use at least one item from the 'User's Wardrobe Items' list. For 'suggestedPairingItems', list the items from their wardrobe being used, plus any *new* items needed to complete the look (as "Smart Buy" suggestions). If the wardrobe is empty, return an empty array for 'wardrobeOutfitIdeas'.
       5.  **Give Detailed Material Advice:** In 'materialAdvice', go beyond just listing fabrics. Provide a detailed, visually descriptive paragraph. Explain *why* certain materials are recommended. Consider the user's **preferred fabrics**. For example, discuss the 'drape' of silk for Indian party wear, the 'breathability' of linen for American casual summer wear, or the 'structure' of wool for a professional suit. Connect the fabric choice directly to the selected occasion, style, and likely season inferred from the selfie's context. Your advice should be practical and help the user understand the feel and look of the fabric.
       6.  **End with a Motivational Note:** Provide a short, uplifting message in 'motivationalNote'.
@@ -168,7 +181,6 @@ export const editImage = async (
   const imagePart = fileToGenerativePart(imageBase64, mimeType);
   const textPart = { text: prompt };
 
-  // UPDATED: Use imageAI (separate API key) for image editing
   const response = await imageAI.models.generateContent({
     model: model,
     contents: { parts: [imagePart, textPart] },

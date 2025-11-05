@@ -102,17 +102,35 @@ const AIFabricMixer: React.FC<AIFabricMixerProps> = ({ onError }) => {
     setLoading(true);
 
     try {
-      const generationPrompt = `Analyze the first image (the person) and the second image (the fabric/pattern). Redraw the ${clothingPart} of the person's outfit using the texture, color, and pattern from the fabric image. The fit and style of the clothing should remain the same. The person's face, body, hair, and other clothing items MUST be preserved perfectly. The background should also be preserved.`;
-
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      // ✅ FIX 1: Use REACT_APP env variable instead of VITE
+      const apiKey = process.env.REACT_APP_GEMINI_IMAGE_API;
       if (!apiKey) {
-        throw new Error('Gemini API key not configured');
+        throw new Error('❌ Gemini API key not configured. Please add REACT_APP_GEMINI_IMAGE_API to .env.local');
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // ✅ FIX 2: Use gemini-2.0-flash for better image generation
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' });
+      
       const base64Image1 = personImage.split(',')[1];
       const base64Image2 = fabricImage.split(',')[1];
+
+      // ✅ FIX 3: Improved prompt for fabric mixing
+      const generationPrompt = `You are an expert AI fashion designer specializing in virtual fabric try-on.
+
+TASK: Analyze the person in the first image and the fabric/pattern in the second image. 
+Create a new image showing the person wearing clothing made from the fabric in the second image.
+
+KEY INSTRUCTIONS:
+1. Generate ONLY the ${clothingPart} portion of the outfit using the fabric pattern/texture from image 2
+2. The fit, style, and design of the clothing should remain similar to the original
+3. The fabric's color, texture, and pattern should be clearly visible and realistic
+4. MUST preserve: The person's face, body shape, pose, hair, and all other clothing items
+5. MUST preserve: The background and overall composition of the original photo
+6. Ensure the fabric blends naturally with proper shadows and lighting
+7. The clothing should look professionally tailored and realistic
+
+Important: Output ONLY the edited image. Do NOT include any text, explanations, or descriptions.`;
 
       const response = await model.generateContent([
         {
@@ -131,15 +149,38 @@ const AIFabricMixer: React.FC<AIFabricMixerProps> = ({ onError }) => {
       ]);
 
       const result = await response.response;
-      if (result.candidates?.[0]?.content?.parts?.[0]) {
-        const part = result.candidates[0].content.parts[0];
-        if ('text' in part) {
-          setEditedImage(part.text as string);
+      
+      // ✅ FIX 4: Better response handling
+      if (result.candidates && result.candidates.length > 0) {
+        const candidate = result.candidates[0];
+        if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+          const part = candidate.content.parts[0];
+          
+          // Handle different response types
+          if ('inlineData' in part && part.inlineData) {
+            const imageData = part.inlineData.data;
+            const mimeType = part.inlineData.mimeType || 'image/jpeg';
+            setEditedImage(`data:${mimeType};base64,${imageData}`);
+          } else if ('text' in part) {
+            const text = part.text as string;
+            if (text.includes('data:image')) {
+              setEditedImage(text);
+            } else {
+              throw new Error('Generated content is not an image. Please try again.');
+            }
+          }
+        } else {
+          throw new Error('No content received from API');
         }
+      } else {
+        throw new Error('No candidates in API response');
       }
+
+      onError?.('✅ Fabric mixing complete!');
     } catch (e) {
-      console.error(e);
-      onError?.('❌ Failed to generate image. Please try again.');
+      console.error('AIFabricMixer Error:', e);
+      const errorMessage = e instanceof Error ? e.message : 'Failed to generate image';
+      onError?.(`❌ ${errorMessage} Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -153,10 +194,11 @@ const AIFabricMixer: React.FC<AIFabricMixerProps> = ({ onError }) => {
       const watermarkedImage = await addWatermark(editedImage);
       const link = document.createElement('a');
       link.href = watermarkedImage;
-      link.download = 'fitfx-creation.jpg';
+      link.download = `fitfx-fabricmix-${new Date().getTime()}.jpg`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      onError?.('✅ Image downloaded successfully!');
     } catch (e) {
       console.error(e);
       onError?.('❌ Failed to process image for download.');
@@ -167,7 +209,7 @@ const AIFabricMixer: React.FC<AIFabricMixerProps> = ({ onError }) => {
 
   return (
     <div className="space-y-6">
-      <p className="text-center text-sm text-gray-400">Virtually try on any fabric. Upload a photo of yourself and a photo of the pattern.</p>
+      <p className="text-center text-sm text-gray-400">✨ Virtually try on any fabric. Upload a photo of yourself and a photo of the fabric pattern.</p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Person Image */}
@@ -175,7 +217,7 @@ const AIFabricMixer: React.FC<AIFabricMixerProps> = ({ onError }) => {
           <h3 className="text-lg font-semibold text-yellow-400 text-center">1. Your Photo</h3>
           <div className="w-full aspect-square bg-gray-900/50 rounded-lg flex items-center justify-center overflow-hidden">
             {personImage ? (
-              <img src={personImage} alt="Person" className="w-full h-full object-cover" />
+              <img src={personImage} alt="Person" className="w-full h-full object-cover rounded-lg" />
             ) : (
               <p className="text-gray-500 text-4xl">👤</p>
             )}
@@ -183,13 +225,13 @@ const AIFabricMixer: React.FC<AIFabricMixerProps> = ({ onError }) => {
           <div className="flex gap-2">
             <button
               onClick={() => handleUploadClick('person')}
-              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900"
+              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900 transition-all"
             >
               📤 Upload
             </button>
             <button
               onClick={() => startCamera('person')}
-              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900"
+              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900 transition-all"
             >
               📷 Photo
             </button>
@@ -201,7 +243,7 @@ const AIFabricMixer: React.FC<AIFabricMixerProps> = ({ onError }) => {
           <h3 className="text-lg font-semibold text-yellow-400 text-center">2. Fabric Photo</h3>
           <div className="w-full aspect-square bg-gray-900/50 rounded-lg flex items-center justify-center overflow-hidden">
             {fabricImage ? (
-              <img src={fabricImage} alt="Fabric" className="w-full h-full object-cover" />
+              <img src={fabricImage} alt="Fabric" className="w-full h-full object-cover rounded-lg" />
             ) : (
               <p className="text-gray-500 text-4xl">🧵</p>
             )}
@@ -209,13 +251,13 @@ const AIFabricMixer: React.FC<AIFabricMixerProps> = ({ onError }) => {
           <div className="flex gap-2">
             <button
               onClick={() => handleUploadClick('fabric')}
-              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900"
+              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900 transition-all"
             >
               📤 Upload
             </button>
             <button
               onClick={() => startCamera('fabric')}
-              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900"
+              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900 transition-all"
             >
               📷 Photo
             </button>
@@ -225,49 +267,53 @@ const AIFabricMixer: React.FC<AIFabricMixerProps> = ({ onError }) => {
 
       {/* Clothing Part Selection */}
       <div>
-        <h3 className="text-lg font-semibold text-yellow-400 text-center mb-2">3. Apply To</h3>
-        <div className="flex justify-center p-1 bg-gray-900 rounded-full max-w-xs mx-auto">
+        <h3 className="text-lg font-semibold text-yellow-400 text-center mb-3">3. Apply Fabric To</h3>
+        <div className="flex justify-center p-1 bg-gray-900 rounded-full max-w-xs mx-auto border border-gray-700">
           <button
             onClick={() => setClothingPart('top')}
-            className={`w-full px-4 py-1.5 rounded-full text-sm font-semibold transition-colors duration-300 ${
+            className={`w-full px-4 py-2 rounded-full text-sm font-semibold transition-colors duration-300 ${
               clothingPart === 'top' ? 'bg-yellow-500 text-gray-900' : 'text-gray-400 hover:bg-gray-700'
             }`}
           >
-            Top
+            👕 Top
           </button>
           <button
             onClick={() => setClothingPart('bottom')}
-            className={`w-full px-4 py-1.5 rounded-full text-sm font-semibold transition-colors duration-300 ${
+            className={`w-full px-4 py-2 rounded-full text-sm font-semibold transition-colors duration-300 ${
               clothingPart === 'bottom' ? 'bg-yellow-500 text-gray-900' : 'text-gray-400 hover:bg-gray-700'
             }`}
           >
-            Bottom
+            👖 Bottom
           </button>
         </div>
       </div>
 
       {/* Result */}
       <div>
-        <h3 className="text-lg font-semibold text-yellow-400 text-center mb-4">4. AI Generated Image</h3>
-        <div className="bg-gray-900/50 rounded-lg flex items-center justify-center flex-col p-4 w-full aspect-square">
+        <h3 className="text-lg font-semibold text-yellow-400 text-center mb-4">4. Your Fabric Mix Result</h3>
+        <div className="bg-gray-900/50 rounded-lg flex items-center justify-center flex-col p-4 w-full aspect-square border border-gray-700">
           {loading ? (
-            <div className="text-center space-y-2">
-              <div className="inline-block animate-spin text-2xl">🔄</div>
-              <p className="text-gray-400">Generating your image...</p>
+            <div className="text-center space-y-3">
+              <div className="inline-block animate-spin text-4xl">🔄</div>
+              <p className="text-gray-400 font-semibold">Mixing fabric...</p>
+              <p className="text-gray-500 text-sm">(This may take 30-60 seconds)</p>
             </div>
           ) : editedImage ? (
             <>
-              <img src={editedImage} alt="Generated result" className="rounded-lg w-full h-auto object-contain max-h-[50vh]" />
+              <img src={editedImage} alt="Generated result" className="rounded-lg w-full h-full object-contain" />
               <button
                 onClick={handleDownload}
                 disabled={isActionLoading}
                 className="mt-4 inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 transition-all hover:bg-yellow-400 hover:text-gray-900 disabled:opacity-50"
               >
-                ⬇️ Download
+                ⬇️ {isActionLoading ? 'Downloading...' : 'Download'}
               </button>
             </>
           ) : (
-            <p className="text-gray-500">Your new look will appear here</p>
+            <div className="text-center space-y-2">
+              <p className="text-gray-500 text-lg">✨ Your fabric mix will appear here</p>
+              <p className="text-gray-400 text-xs">Upload both images and select fabric part to begin</p>
+            </div>
           )}
         </div>
       </div>
@@ -280,7 +326,7 @@ const AIFabricMixer: React.FC<AIFabricMixerProps> = ({ onError }) => {
         disabled={loading || !personImage || !fabricImage}
         className="w-full bg-yellow-400 text-gray-900 font-bold py-3 px-6 rounded-lg hover:bg-yellow-300 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-lg"
       >
-        {loading ? '🔄 Processing...' : '🎨 Generate Fabric Mix'}
+        {loading ? '🔄 Processing fabric mix...' : '🎨 Generate Fabric Mix'}
       </button>
 
       {/* Camera Modal */}

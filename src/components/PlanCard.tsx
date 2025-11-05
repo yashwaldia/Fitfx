@@ -7,6 +7,7 @@ interface PlanCardProps {
   isSelected: boolean;
   onSelect: () => void;
   isLoading?: boolean;
+  isCurrent?: boolean; // ✅ ADD THIS LINE
 }
 
 const PlanCard: React.FC<PlanCardProps> = ({
@@ -14,18 +15,46 @@ const PlanCard: React.FC<PlanCardProps> = ({
   isSelected,
   onSelect,
   isLoading = false,
+  isCurrent = false, // ✅ ADD THIS LINE
 }) => {
   // ✅ FIXED: Dynamic price display (now reads from plan.price)
   const displayPrice = plan.price === 0 ? '0' : plan.price.toString();
+
+  // ✅ NEW: Determine button text based on current plan
+  const getButtonText = () => {
+    if (isCurrent) return '✅ Current Plan';
+    if (plan.tier === 'free') return 'Continue with Free';
+    return `Choose ${plan.name}`;
+  };
+
+  // ✅ NEW: Determine button style based on current plan
+  const getButtonStyle = () => {
+    if (isCurrent) {
+      return 'bg-green-600 hover:bg-green-600 text-white cursor-not-allowed';
+    }
+    if (plan.tier === 'free') {
+      return 'bg-gray-700 hover:bg-gray-600 text-white border border-gray-600';
+    }
+    return 'bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold shadow-lg shadow-yellow-400/30 hover:shadow-xl hover:shadow-yellow-400/50';
+  };
 
   return (
     <div
       className={`relative rounded-xl border-2 transition-all duration-300 ${
         isSelected
           ? 'border-yellow-400 bg-yellow-400/10 scale-105 shadow-lg shadow-yellow-400/30'
+          : isCurrent
+          ? 'border-green-500 bg-green-500/10' // ✅ Green border for current plan
           : 'border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800/70'
       }`}
     >
+      {/* ✅ NEW: Current Plan Badge */}
+      {isCurrent && (
+        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-1 rounded-full text-xs font-bold shadow-lg z-10">
+          ✅ Your Current Plan
+        </div>
+      )}
+
       <div className="p-6 flex flex-col h-full">
         <div className="mb-4">
           <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
@@ -40,7 +69,8 @@ const PlanCard: React.FC<PlanCardProps> = ({
             )}
           </div>
 
-          {plan.tier === 'style_plus' && (
+          {/* ✅ UPDATED: Show "Most Popular" only if not current plan */}
+          {plan.tier === 'style_plus' && !isCurrent && (
             <div className="inline-block bg-yellow-400 text-gray-900 px-3 py-1 rounded-full text-xs font-bold mb-3">
               Most Popular
             </div>
@@ -82,24 +112,23 @@ const PlanCard: React.FC<PlanCardProps> = ({
           </div>
         </div>
 
+        {/* ✅ UPDATED: Button with dynamic text and disabled state for current plan */}
         <button
           onClick={onSelect}
-          disabled={isLoading}
-          className={`w-full py-3 px-4 rounded-lg font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
-            plan.tier === 'free'
-              ? 'bg-gray-700 hover:bg-gray-600 text-white border border-gray-600'
-              : 'bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold shadow-lg shadow-yellow-400/30 hover:shadow-xl hover:shadow-yellow-400/50'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
+          disabled={isLoading || isCurrent} // ✅ Disable if current plan
+          className={`
+            w-full py-3 px-4 rounded-lg font-bold transition-all duration-300 flex items-center justify-center gap-2
+            disabled:opacity-70 disabled:cursor-not-allowed
+            ${getButtonStyle()}
+          `}
         >
           {isLoading ? (
             <>
               <span className="animate-spin">⏳</span>
               Processing...
             </>
-          ) : plan.tier === 'free' ? (
-            'Continue with Free'
           ) : (
-            `Choose ${plan.name}`
+            getButtonText()
           )}
         </button>
       </div>

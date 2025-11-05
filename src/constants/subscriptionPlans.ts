@@ -5,7 +5,7 @@ export const FEATURE_LIMITS: Record<string, FeatureLimits> = {
   free: {
     colorSuggestions: 5,
     outfitPreviews: 3,
-    wardrobeLimit: 0,              // No wardrobe access
+    wardrobeLimit: 0,
     imageEditorAccess: false,
     batchGeneration: false,
     chatbotAccess: 'basic'
@@ -13,7 +13,7 @@ export const FEATURE_LIMITS: Record<string, FeatureLimits> = {
   style_plus: {
     colorSuggestions: 10,
     outfitPreviews: 5,
-    wardrobeLimit: 10,             // Max 10 items
+    wardrobeLimit: 10,
     imageEditorAccess: true,
     batchGeneration: false,
     chatbotAccess: 'standard'
@@ -21,14 +21,13 @@ export const FEATURE_LIMITS: Record<string, FeatureLimits> = {
   style_x: {
     colorSuggestions: 15,
     outfitPreviews: 8,
-    wardrobeLimit: -1,             // Unlimited (-1)
+    wardrobeLimit: -1,
     imageEditorAccess: true,
     batchGeneration: true,
     chatbotAccess: 'premium'
   }
 };
 
-// Plan configurations
 export const SUBSCRIPTION_PLANS: PlanConfig[] = [
   {
     tier: 'free',
@@ -83,7 +82,6 @@ export const SUBSCRIPTION_PLANS: PlanConfig[] = [
   }
 ];
 
-// Helper functions
 export function getPlanByTier(tier: string): PlanConfig | undefined {
   return SUBSCRIPTION_PLANS.find(plan => plan.tier === tier);
 }
@@ -92,12 +90,29 @@ export function getFeatureLimits(tier: string): FeatureLimits {
   return FEATURE_LIMITS[tier] || FEATURE_LIMITS.free;
 }
 
-// ✅ FIXED: Proper type checking
+export function getWardrobeLimit(tier: string): number {
+  return FEATURE_LIMITS[tier]?.wardrobeLimit || FEATURE_LIMITS.free.wardrobeLimit;
+}
+
 export function canAccessFeature(tier: string, feature: keyof FeatureLimits): boolean {
   const limits = getFeatureLimits(tier);
   const value = limits[feature];
   
   if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value > 0 || value === -1; // -1 means unlimited
+  if (typeof value === 'number') return value > 0 || value === -1;
   return true;
+}
+
+export function canAddWardrobeItem(tier: string, currentCount: number): boolean {
+  const limit = getWardrobeLimit(tier);
+  if (limit === -1) return true;
+  if (limit === 0) return false;
+  return currentCount < limit;
+}
+
+export function getWardrobeLimitMessage(tier: string): string {
+  const limit = getWardrobeLimit(tier);
+  if (limit === -1) return '✅ Unlimited wardrobe access';
+  if (limit === 0) return '❌ Wardrobe not available in free tier';
+  return `${limit} wardrobe items maximum`;
 }

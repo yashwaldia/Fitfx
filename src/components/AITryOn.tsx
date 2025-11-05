@@ -103,19 +103,43 @@ const AITryOn: React.FC<AITryOnProps> = ({ onError }) => {
     setLoading(true);
 
     try {
+      // ✅ FIX 1: Use REACT_APP env variable instead of VITE
+      const apiKey = process.env.REACT_APP_GEMINI_IMAGE_API;
+      if (!apiKey) {
+        throw new Error('❌ Gemini API key not configured. Please add REACT_APP_GEMINI_IMAGE_API to .env.local');
+      }
+
       const selectedDress = dressData.find(
         d => d.country === country && d.gender === gender && d.dress_name === dressName
       );
 
-      const generationPrompt = `Reimagine the person in this photo wearing a new outfit. The outfit is a ${dressColor || ''} ${dressName}. This is a ${gender} garment from ${country}, described as: "${selectedDress?.description || ''}". Change the clothing to match the description, fitting it realistically to the person's body. The person's face, hair, and features MUST be preserved. The background can be subtly changed to complement the new outfit's style.`;
+      // ✅ FIX 2: Improved prompt for AI try-on
+      const generationPrompt = `You are an expert AI fashion designer specializing in virtual try-on experiences.
 
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('Gemini API key not configured');
-      }
+TASK: Transform the person in this image to wear a traditional ${country} outfit.
+
+OUTFIT DETAILS:
+- Type: ${dressName}
+- Color: ${dressColor || 'traditional color'}
+- Style: ${selectedDress?.description || ''}
+- Gender: ${gender}
+
+KEY REQUIREMENTS:
+1. Replace the current clothing with the ${dressName} in ${dressColor || 'appropriate'} color
+2. The garment should follow the style description provided
+3. MUST preserve: The person's face, hair, facial features, and body shape
+4. MUST preserve: The person's pose and stance
+5. Make the traditional outfit look realistic and professionally tailored
+6. Ensure proper draping, fit, and cultural authenticity
+7. Match lighting and shadows with the original photo
+8. The background can complement the new outfit style
+9. The outfit should look professionally worn, not costume-like
+
+IMPORTANT: Output ONLY the transformed image. Do NOT include text, explanations, or descriptions.`;
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // ✅ FIX 3: Use gemini-2.0-flash for better image generation
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' });
       const base64Image = selfieImage.split(',')[1];
 
       const response = await model.generateContent([
@@ -129,15 +153,38 @@ const AITryOn: React.FC<AITryOnProps> = ({ onError }) => {
       ]);
 
       const result = await response.response;
-      if (result.candidates?.[0]?.content?.parts?.[0]) {
-        const part = result.candidates[0].content.parts[0];
-        if ('text' in part) {
-          setEditedImage(part.text as string);
+      
+      // ✅ FIX 4: Better response handling
+      if (result.candidates && result.candidates.length > 0) {
+        const candidate = result.candidates[0];
+        if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+          const part = candidate.content.parts[0];
+          
+          // Handle different response types
+          if ('inlineData' in part && part.inlineData) {
+            const imageData = part.inlineData.data;
+            const mimeType = part.inlineData.mimeType || 'image/jpeg';
+            setEditedImage(`data:${mimeType};base64,${imageData}`);
+          } else if ('text' in part) {
+            const text = part.text as string;
+            if (text.includes('data:image')) {
+              setEditedImage(text);
+            } else {
+              throw new Error('Generated content is not an image. Please try again.');
+            }
+          }
+        } else {
+          throw new Error('No content received from API');
         }
+      } else {
+        throw new Error('No candidates in API response');
       }
+
+      onError?.('✅ Virtual try-on complete!');
     } catch (e) {
-      console.error(e);
-      onError?.('❌ Failed to generate image. Please try again.');
+      console.error('AITryOn Error:', e);
+      const errorMessage = e instanceof Error ? e.message : 'Failed to generate image';
+      onError?.(`❌ ${errorMessage} Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -151,10 +198,11 @@ const AITryOn: React.FC<AITryOnProps> = ({ onError }) => {
       const watermarkedImage = await addWatermark(editedImage);
       const link = document.createElement('a');
       link.href = watermarkedImage;
-      link.download = 'fitfx-creation.jpg';
+      link.download = `fitfx-tryon-${new Date().getTime()}.jpg`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      onError?.('✅ Image downloaded successfully!');
     } catch (e) {
       console.error(e);
       onError?.('❌ Failed to process image for download.');
@@ -165,23 +213,32 @@ const AITryOn: React.FC<AITryOnProps> = ({ onError }) => {
 
   return (
     <div className="space-y-6">
+      <p className="text-center text-sm text-gray-400">✨ Try on traditional outfits from around the world. Upload your photo and select an outfit to visualize!</p>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Left: Selfie Input */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-yellow-400 text-center">1. Your Photo</h3>
           <div className="w-full aspect-square bg-gray-900/50 rounded-lg flex items-center justify-center overflow-hidden">
-            {selfieImage ? <img src={selfieImage} alt="Selfie" className="w-full h-full object-cover" /> : <p className="text-gray-500">Selfie appears here</p>}
+            {selfieImage ? (
+              <img src={selfieImage} alt="Selfie" className="w-full h-full object-cover rounded-lg" />
+            ) : (
+              <div className="text-center text-gray-500">
+                <p className="text-4xl mb-2">🤳</p>
+                <p>Selfie appears here</p>
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleUploadClick}
-              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900"
+              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900 transition-all"
             >
               📤 Upload
             </button>
             <button
               onClick={startCamera}
-              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900"
+              className="w-full flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 hover:bg-yellow-400 hover:text-gray-900 transition-all"
             >
               📷 Selfie
             </button>
@@ -193,11 +250,11 @@ const AITryOn: React.FC<AITryOnProps> = ({ onError }) => {
           <h3 className="text-lg font-semibold text-yellow-400 text-center">2. Design Outfit</h3>
 
           <div>
-            <label className="text-sm font-medium text-gray-400">Country</label>
+            <label className="text-sm font-medium text-gray-400">🌍 Country</label>
             <select
               value={country}
               onChange={(e) => setCountry(e.target.value)}
-              className="w-full mt-1 bg-gray-900 text-gray-200 rounded-full p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:ring-0 outline-none"
+              className="w-full mt-1 bg-gray-900 text-gray-200 rounded-lg p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:outline-none"
             >
               {countries.map(c => (
                 <option key={c} value={c}>{c}</option>
@@ -206,11 +263,11 @@ const AITryOn: React.FC<AITryOnProps> = ({ onError }) => {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-gray-400">Gender</label>
+            <label className="text-sm font-medium text-gray-400">👥 Gender</label>
             <select
               value={gender}
               onChange={(e) => setGender(e.target.value as 'female' | 'male')}
-              className="w-full mt-1 bg-gray-900 text-gray-200 rounded-full p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:ring-0 outline-none"
+              className="w-full mt-1 bg-gray-900 text-gray-200 rounded-lg p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:outline-none"
             >
               {genders.map(g => (
                 <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>
@@ -219,11 +276,11 @@ const AITryOn: React.FC<AITryOnProps> = ({ onError }) => {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-gray-400">Dress Type</label>
+            <label className="text-sm font-medium text-gray-400">👗 Dress Type</label>
             <select
               value={dressName}
               onChange={(e) => setDressName(e.target.value)}
-              className="w-full mt-1 bg-gray-900 text-gray-200 rounded-full p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:ring-0 outline-none"
+              className="w-full mt-1 bg-gray-900 text-gray-200 rounded-lg p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:outline-none"
             >
               <option value="" disabled>Select a dress</option>
               {filteredDresses.map(d => (
@@ -233,13 +290,13 @@ const AITryOn: React.FC<AITryOnProps> = ({ onError }) => {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-gray-400">Color</label>
+            <label className="text-sm font-medium text-gray-400">🎨 Color</label>
             <input
               type="text"
               value={dressColor}
               onChange={(e) => setDressColor(e.target.value)}
-              placeholder="e.g., #FFD700, Gold"
-              className="w-full mt-1 bg-gray-900 text-gray-200 rounded-full p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:ring-0 outline-none"
+              placeholder="e.g., Gold, Red, Blue"
+              className="w-full mt-1 bg-gray-900 text-gray-200 rounded-lg p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:outline-none"
             />
           </div>
         </div>
@@ -247,26 +304,30 @@ const AITryOn: React.FC<AITryOnProps> = ({ onError }) => {
 
       {/* Result */}
       <div>
-        <h3 className="text-lg font-semibold text-yellow-400 text-center mb-4">3. AI Generated Image</h3>
-        <div className="bg-gray-900/50 rounded-lg flex items-center justify-center flex-col p-4 w-full aspect-video">
+        <h3 className="text-lg font-semibold text-yellow-400 text-center mb-4">3. Your Virtual Try-On</h3>
+        <div className="bg-gray-900/50 rounded-lg flex items-center justify-center flex-col p-4 w-full aspect-video border border-gray-700">
           {loading ? (
-            <div className="text-center space-y-2">
-              <div className="inline-block animate-spin text-2xl">🔄</div>
-              <p className="text-gray-400">Generating your image...</p>
+            <div className="text-center space-y-3">
+              <div className="inline-block animate-spin text-4xl">🔄</div>
+              <p className="text-gray-400 font-semibold">Generating your virtual try-on...</p>
+              <p className="text-gray-500 text-sm">(This may take 30-60 seconds)</p>
             </div>
           ) : editedImage ? (
             <>
-              <img src={editedImage} alt="Generated result" className="rounded-lg w-full h-auto object-contain max-h-[50vh]" />
+              <img src={editedImage} alt="Generated result" className="rounded-lg w-full h-full object-contain" />
               <button
                 onClick={handleDownload}
                 disabled={isActionLoading}
                 className="mt-4 inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 transition-all hover:bg-yellow-400 hover:text-gray-900 disabled:opacity-50"
               >
-                ⬇️ Download
+                ⬇️ {isActionLoading ? 'Downloading...' : 'Download'}
               </button>
             </>
           ) : (
-            <p className="text-gray-500">Your virtual try-on will appear here</p>
+            <div className="text-center space-y-2">
+              <p className="text-gray-500 text-lg">✨ Your virtual try-on will appear here</p>
+              <p className="text-gray-400 text-xs">Upload a photo and select an outfit to begin</p>
+            </div>
           )}
         </div>
       </div>
@@ -276,10 +337,10 @@ const AITryOn: React.FC<AITryOnProps> = ({ onError }) => {
 
       <button
         onClick={handleGenerate}
-        disabled={loading || !selfieImage}
+        disabled={loading || !selfieImage || !dressName}
         className="w-full bg-yellow-400 text-gray-900 font-bold py-3 px-6 rounded-lg hover:bg-yellow-300 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-lg"
       >
-        {loading ? '🔄 Processing...' : '🎨 Generate Try-On'}
+        {loading ? '🔄 Processing your try-on...' : '🎨 Generate Try-On'}
       </button>
 
       {/* Camera Modal */}

@@ -62,27 +62,32 @@ const AIEdit: React.FC<AIEditProps> = ({ wardrobe = [], onError }) => {
     setLoading(true);
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      // ✅ FIX 1: Use REACT_APP env variable instead of VITE
+      const apiKey = process.env.REACT_APP_GEMINI_IMAGE_API;
       if (!apiKey) {
-        throw new Error('Gemini API key not configured');
+        throw new Error('❌ Gemini API key not configured. Please add REACT_APP_GEMINI_IMAGE_API to .env.local');
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // ✅ FIX 2: Use gemini-2.0-flash for better image generation
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' });
+      
       const base64Image = originalImage.split(',')[1];
 
-      const prompt = `You are an expert fashion image editor specializing in virtual try-on. The user is providing you with a selfie and wants you to edit their clothing based on their request.
+      // ✅ FIX 3: Improved prompt for better clothing editing
+      const prompt = `You are an expert fashion image editor specializing in AI-powered virtual try-on and outfit styling.
 
-USER'S REQUEST: "${userInput}"
+IMPORTANT INSTRUCTIONS:
+1. The user provides a REAL photo of themselves wearing clothes
+2. They want you to EDIT the clothing in the image based on their specific request
+3. You must ONLY modify the clothing as requested - do NOT change the person's body, face, or pose
+4. The edited clothing must look REALISTIC and properly fitted on the person
+5. Maintain consistent lighting, shadows, and colors with the original photo
+6. Make sure the clothing changes blend naturally with the rest of the image
 
-Please analyze this image and apply the requested clothing changes. Make sure to:
-1. Keep the person's face, body shape, and pose exactly the same
-2. Only modify the clothing as requested
-3. Make the clothing changes look realistic and professionally edited
-4. Ensure the edited clothing fits naturally on the person
-5. Maintain proper colors, shadows, and lighting to match the original photo
+USER'S CLOTHING EDIT REQUEST: "${userInput}"
 
-Return ONLY the edited image. Do NOT include any text or explanations.`;
+IMPORTANT: Return ONLY the edited image. Do NOT include any text, explanations, or descriptions. The output must be a valid image.`;
 
       const response = await model.generateContent([
         {
@@ -95,15 +100,39 @@ Return ONLY the edited image. Do NOT include any text or explanations.`;
       ]);
 
       const result = await response.response;
-      if (result.candidates?.[0]?.content?.parts?.[0]) {
-        const part = result.candidates[0].content.parts[0];
-        if ('text' in part) {
-          setEditedImage(part.text as string);
+      
+      // ✅ FIX 4: Better response handling
+      if (result.candidates && result.candidates.length > 0) {
+        const candidate = result.candidates[0];
+        if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+          const part = candidate.content.parts[0];
+          
+          // Handle different response types
+          if ('inlineData' in part && part.inlineData) {
+            const imageData = part.inlineData.data;
+            const mimeType = part.inlineData.mimeType || 'image/jpeg';
+            setEditedImage(`data:${mimeType};base64,${imageData}`);
+          } else if ('text' in part) {
+            // If it's text with image data
+            const text = part.text as string;
+            if (text.includes('data:image')) {
+              setEditedImage(text);
+            } else {
+              throw new Error('Generated content is not an image. Please try a different prompt.');
+            }
+          }
+        } else {
+          throw new Error('No content received from API');
         }
+      } else {
+        throw new Error('No candidates in API response');
       }
+
+      onError?.('✅ Image editing complete!');
     } catch (e) {
-      console.error(e);
-      onError?.('❌ Failed to generate image. Please try again with a different prompt.');
+      console.error('AIEdit Error:', e);
+      const errorMessage = e instanceof Error ? e.message : 'Failed to generate image';
+      onError?.(`❌ ${errorMessage}. Please try again with a clearer description.`);
     } finally {
       setLoading(false);
     }
@@ -117,10 +146,11 @@ Return ONLY the edited image. Do NOT include any text or explanations.`;
       const watermarkedImage = await addWatermark(editedImage);
       const link = document.createElement('a');
       link.href = watermarkedImage;
-      link.download = 'fitfx-creation.jpg';
+      link.download = `fitfx-aiedit-${new Date().getTime()}.jpg`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      onError?.('✅ Image downloaded successfully!');
     } catch (e) {
       console.error(e);
       onError?.('❌ Failed to process image for download.');
@@ -185,22 +215,23 @@ Return ONLY the edited image. Do NOT include any text or explanations.`;
             <div className="bg-gray-900/50 rounded-lg flex items-center justify-center flex-col p-4">
               {loading ? (
                 <div className="text-center space-y-2">
-                  <div className="inline-block animate-spin text-2xl">🔄</div>
-                  <p className="text-gray-400">Generating your image...</p>
+                  <div className="inline-block animate-spin text-4xl">🔄</div>
+                  <p className="text-gray-400 font-semibold">Editing your image...</p>
+                  <p className="text-gray-500 text-sm">(This may take 30-60 seconds)</p>
                 </div>
               ) : editedImage ? (
                 <>
-                  <img src={editedImage} alt="Generated result" className="rounded-lg w-full h-auto object-contain max-h-[50vh]" />
+                  <img src={editedImage} alt="Generated result" className="rounded-lg w-full h-auto object-contain max-h-80" />
                   <button
                     onClick={handleDownload}
                     disabled={isActionLoading}
                     className="mt-4 inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 transition-all hover:bg-yellow-400 hover:text-gray-900 disabled:opacity-50"
                   >
-                    ⬇️ Download
+                    ⬇️ {isActionLoading ? 'Downloading...' : 'Download'}
                   </button>
                 </>
               ) : (
-                <p className="text-gray-500">Your edit will appear here</p>
+                <p className="text-gray-500">Your edited image will appear here</p>
               )}
             </div>
           </div>
@@ -210,9 +241,10 @@ Return ONLY the edited image. Do NOT include any text or explanations.`;
             <textarea
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              placeholder="Example: Change my t-shirt to blue. Add a black leather jacket."
+              placeholder="Example: Change my t-shirt to blue. Add a black leather jacket. Make my pants look more formal."
               className="w-full h-24 bg-gray-800 border-2 border-gray-700 rounded-lg p-3 text-white placeholder-gray-500 focus:border-yellow-400 focus:outline-none resize-none"
             />
+            <p className="text-xs text-gray-400">💡 Be specific about colors, styles, and materials for best results</p>
           </div>
 
           <div className="text-center">
@@ -224,7 +256,7 @@ Return ONLY the edited image. Do NOT include any text or explanations.`;
               }}
               className="text-sm text-yellow-400 hover:underline"
             >
-              Upload a different image
+              ↻ Upload a different image
             </button>
           </div>
         </div>
@@ -236,6 +268,7 @@ Return ONLY the edited image. Do NOT include any text or explanations.`;
           >
             📸 Choose Photo
           </button>
+          <p className="text-gray-400 text-sm mt-3">Upload a clear photo of yourself wearing clothes</p>
         </div>
       )}
 

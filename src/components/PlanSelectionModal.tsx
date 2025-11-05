@@ -8,16 +8,25 @@ interface PlanSelectionModalProps {
   isOpen: boolean;
   isLoading?: boolean;
   onClose?: () => void;
+  currentTier?: SubscriptionTier; // ✅ ADD THIS - Current subscription tier
 }
 
 const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({ 
   onPlanSelect, 
   isOpen, 
   isLoading = false,
-  onClose 
+  onClose,
+  currentTier = 'free' // ✅ ADD THIS - Default to free
 }) => {
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // ✅ Debug log to verify currentTier
+  useEffect(() => {
+    if (isOpen) {
+      console.log('🎬 PlanSelectionModal - currentTier:', currentTier);
+    }
+  }, [isOpen, currentTier]);
 
   useEffect(() => {
     if (isOpen) {
@@ -60,6 +69,12 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
   }, [isOpen]);
 
   const handlePlanSelect = async (tier: SubscriptionTier) => {
+    // ✅ Prevent selecting current tier
+    if (tier === currentTier) {
+      console.log('⚠️ Already on this plan:', tier);
+      return;
+    }
+
     setSelectedTier(tier);
     setIsProcessing(true);
     try {
@@ -121,15 +136,20 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
             <div className="p-4 md:p-8">
               {/* Plans Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                {SUBSCRIPTION_PLANS.map((plan) => (
-                  <PlanCard
-                    key={plan.tier}
-                    plan={plan}
-                    isSelected={selectedTier === plan.tier}
-                    onSelect={() => handlePlanSelect(plan.tier as SubscriptionTier)}
-                    isLoading={isProcessing && selectedTier === plan.tier}
-                  />
-                ))}
+                {SUBSCRIPTION_PLANS.map((plan) => {
+                  const isCurrentPlan = plan.tier === currentTier; // ✅ Check if this is current plan
+                  
+                  return (
+                    <PlanCard
+                      key={plan.tier}
+                      plan={plan}
+                      isSelected={selectedTier === plan.tier}
+                      onSelect={() => handlePlanSelect(plan.tier as SubscriptionTier)}
+                      isLoading={isProcessing && selectedTier === plan.tier}
+                      isCurrent={isCurrentPlan} // ✅ PASS THIS to PlanCard
+                    />
+                  );
+                })}
               </div>
 
               {/* Info Text */}
