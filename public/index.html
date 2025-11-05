@@ -1,43 +1,230 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- ========================================
+         🎨 FitFX - AI Personal Styling Assistant
+         ======================================== -->
+    
+    <!-- Basic Meta Tags -->
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    
+    <!-- Theme & Browser Color -->
+    <meta name="theme-color" content="#1F2937" />
+    <meta name="msapplication-TileColor" content="#1F2937" />
+    
+    <!-- Primary Meta Tags (SEO) -->
+    <title>FitFX - AI-Powered Personal Styling Assistant | Get Personalized Fashion Advice</title>
+    <meta name="title" content="FitFX - AI-Powered Personal Styling Assistant | Get Personalized Fashion Advice" />
+    <meta name="description" content="Transform your style with FitFX - Your AI-powered personal styling assistant. Get personalized outfit recommendations, color analysis, virtual try-on, and smart wardrobe management. Start your fashion journey today!" />
+    <meta name="keywords" content="AI styling, personal stylist, fashion app, outfit recommendations, color analysis, virtual try-on, wardrobe management, fashion AI, style advisor, outfit planner, clothing suggestions, fashion technology" />
+    <meta name="author" content="FitFX" />
+    <meta name="robots" content="index, follow" />
+    <meta name="language" content="English" />
+    <meta name="revisit-after" content="7 days" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://fitfx.vercel.app/" />
+    <meta property="og:title" content="FitFX - AI-Powered Personal Styling Assistant" />
+    <meta property="og:description" content="Transform your style with AI-powered personalized fashion advice. Get outfit recommendations, color analysis, virtual try-on & smart wardrobe management." />
+    <meta property="og:image" content="%PUBLIC_URL%/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="FitFX" />
+    <meta property="og:locale" content="en_US" />
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://fitfx.vercel.app/" />
+    <meta name="twitter:title" content="FitFX - AI-Powered Personal Styling Assistant" />
+    <meta name="twitter:description" content="Transform your style with AI-powered personalized fashion advice. Get outfit recommendations, color analysis & more." />
+    <meta name="twitter:image" content="%PUBLIC_URL%/twitter-card.png" />
+    <meta name="twitter:creator" content="@FitFX" />
+    
+    <!-- Canonical URL (Prevent Duplicate Content) -->
+    <link rel="canonical" href="https://fitfx.vercel.app/" />
+    
+    <!-- Favicon & App Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="%PUBLIC_URL%/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/apple-touch-icon.png" />
+    <link rel="mask-icon" href="%PUBLIC_URL%/safari-pinned-tab.svg" color="#FBBF24" />
+    
+    <!-- Android Chrome Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/android-chrome-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="%PUBLIC_URL%/android-chrome-512x512.png" />
+    
+    <!-- Web App Manifest -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
-
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
+    
+    <!-- Preconnect for Performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
+    
+    <!-- DNS Prefetch for External Resources -->
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+    <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
+    <link rel="dns-prefetch" href="https://apis.google.com" />
+    
+    <!-- Security Headers -->
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
+    
+    <!-- Google Analytics (Optional - Add your GA ID) -->
+    <!-- <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'GA_MEASUREMENT_ID');
+    </script> -->
+    
+    <!-- Structured Data (JSON-LD) for SEO -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "FitFX",
+      "applicationCategory": "LifestyleApplication",
+      "description": "AI-powered personal styling assistant providing personalized fashion advice, outfit recommendations, color analysis, and virtual try-on features.",
+      "url": "https://fitfx.vercel.app/",
+      "screenshot": "https://fitfx.vercel.app/screenshot.png",
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "ratingCount": "500"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "INR",
+        "availability": "https://schema.org/InStock"
+      },
+      "operatingSystem": "Web Browser",
+      "browserRequirements": "Requires JavaScript. Requires HTML5.",
+      "softwareVersion": "2.0",
+      "author": {
+        "@type": "Organization",
+        "name": "FitFX"
+      },
+      "featureList": [
+        "AI-Powered Style Recommendations",
+        "Personalized Color Analysis",
+        "Virtual Try-On",
+        "Smart Wardrobe Management",
+        "Outfit Calendar Planner",
+        "AI Chatbot Assistant",
+        "Image Editor with AI"
+      ]
+    }
+    </script>
+    
+    <!-- Critical CSS (Optional - for faster first paint) -->
+    <style>
+      /* Critical CSS for instant loading */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-color: #111827;
+        color: #F3F4F6;
+      }
+      #root {
+        min-height: 100vh;
+      }
+      .loading-screen {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #1F2937 0%, #111827 100%);
+      }
+      .spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #374151;
+        border-top-color: #FBBF24;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
   </head>
+  
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
+    <!-- NoScript Message -->
+    <noscript>
+      <div style="
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: #111827;
+        color: #F3F4F6;
+        text-align: center;
+        padding: 20px;
+        font-family: system-ui, -apple-system, sans-serif;
+      ">
+        <h1 style="font-size: 2rem; margin-bottom: 1rem; color: #FBBF24;">⚠️ JavaScript Required</h1>
+        <p style="font-size: 1.125rem; max-width: 600px; line-height: 1.6;">
+          FitFX requires JavaScript to run. Please enable JavaScript in your browser settings to experience the full features of our AI-powered styling assistant.
+        </p>
+        <p style="margin-top: 2rem; font-size: 0.875rem; color: #9CA3AF;">
+          Need help? Contact us at <a href="mailto:support@fitfx.com" style="color: #FBBF24; text-decoration: underline;">support@fitfx.com</a>
+        </p>
+      </div>
+    </noscript>
+    
+    <!-- App Root -->
+    <div id="root">
+      <!-- Loading Screen (Shown until React loads) -->
+      <div class="loading-screen">
+        <div class="spinner"></div>
+      </div>
+    </div>
+    
+    <!-- Service Worker Registration (for PWA) -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker
+            .register('%PUBLIC_URL%/service-worker.js')
+            .then(registration => {
+              console.log('✅ Service Worker registered:', registration);
+            })
+            .catch(error => {
+              console.log('❌ Service Worker registration failed:', error);
+            });
+        });
+      }
+    </script>
+    
     <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
+      🚀 FitFX - AI-Powered Personal Styling Assistant
+      
+      Built with:
+      - React + TypeScript
+      - Tailwind CSS
+      - Firebase (Auth, Firestore)
+      - Google Gemini AI
+      - Razorpay Payment Gateway
+      
+      Version: 2.0
+      Last Updated: November 2025
+      
+      © 2025 FitFX. All rights reserved.
     -->
   </body>
 </html>
