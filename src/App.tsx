@@ -13,7 +13,8 @@ import {
 } from './services/firestoreService';
 import { getStyleAdvice } from './services/geminiService';
 import { openLemonCheckout, getVariantIdFromTier } from './services/lemonSqueezyService';
-import type { StyleAdvice, Occasion, Style, Gender, Garment, UserProfile, OutfitData, SubscriptionTier } from './types';
+// ✨ UPDATED: Import Country instead of Style
+import type { StyleAdvice, Occasion, Country, Gender, Garment, UserProfile, OutfitData, SubscriptionTier } from './types';
 
 // Components
 import SelfieUploader from './components/SelfieUploader';
@@ -37,10 +38,11 @@ import SubscriptionManager from './components/SubscriptionManager';
 import { requestNotificationPermission } from './components/Notifications';
 import logoImage from './images/logo.png';
 
+
 type View = 'stylist' | 'wardrobe' | 'editor' | 'colorMatrix' | 'calendar' | 'settings';
 type AuthStep = 'loading' | 'login' | 'profile' | 'loggedIn';
 
-// ✅ Environment Variables Test
+
 if (typeof window !== 'undefined') {
   console.log('=== LEMON SQUEEZY ENV VARIABLES ===');
   console.log('REACT_APP_LEMON_STORE_ID:', process.env.REACT_APP_LEMON_STORE_ID);
@@ -52,6 +54,7 @@ if (typeof window !== 'undefined') {
     process.env.REACT_APP_LEMON_STYLE_X_VARIANT_ID;
   console.log(allLoaded ? '✅ YES - Ready to use!' : '❌ NO - Check .env.local');
 }
+
 
 const App: React.FC = () => {
   // Auth state
@@ -69,8 +72,9 @@ const App: React.FC = () => {
 
   // App state
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [occasion, setOccasion] = useState<Occasion>('Professional');
-  const [style, setStyle] = useState<Style>('American');
+  const [occasion, setOccasion] = useState<Occasion>('Traditional');
+  // ✨ UPDATED: Changed from 'style' to 'country'
+  const [country, setCountry] = useState<Country>('India');
   const [age, setAge] = useState<string>('');
   const [gender, setGender] = useState<Gender>('Male');
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
@@ -81,6 +85,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<View>('stylist');
   const [todaySuggestion, setTodaySuggestion] = useState<OutfitData | null>(null);
 
+
   // Check authentication state and load user data
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -90,36 +95,29 @@ const App: React.FC = () => {
         setUser(currentUser);
         
         try {
-          // Load user profile from Firestore
           const profile = await loadUserProfile(currentUser.uid);
           
           if (profile) {
-            // User has profile, load everything
             setUserProfile(profile);
             
-            // Load wardrobe from Firestore
             const wardrobeData = await loadWardrobe(currentUser.uid);
             setWardrobe(wardrobeData);
             
-            // Pre-fill form data
             if (profile.age) setAge(profile.age);
             if (profile.gender) setGender(profile.gender);
             if (profile.preferredOccasions && profile.preferredOccasions.length > 0) {
               setOccasion(profile.preferredOccasions[0]);
             }
-            if (profile.preferredStyles && profile.preferredStyles.length > 0) {
-              setStyle(profile.preferredStyles[0]);
-            }
+            // ✨ UPDATED: Set country from profile if available
+            // Note: You may need to extend UserProfile to store country preference
             if (profile.favoriteColors) {
               setSelectedColors(profile.favoriteColors);
             }
             
-            // ✅ Load subscription tier
             if (profile.subscription?.tier) {
               setSubscriptionTier(profile.subscription.tier);
             }
             
-            // ✅ Show plan modal if user hasn't seen it
             if (!profile.hasSeenPlanModal && profile.subscription?.tier === 'free') {
               setShowPlanModal(true);
             }
@@ -127,7 +125,6 @@ const App: React.FC = () => {
             setAuthStep('loggedIn');
             generateTodaySuggestion();
           } else {
-            // User logged in but no profile, show profile creation
             setAuthStep('profile');
           }
         } catch (error) {
@@ -135,13 +132,13 @@ const App: React.FC = () => {
           setAuthStep('profile');
         }
       } else {
-        // User not logged in
         setAuthStep('login');
       }
     });
 
     return () => unsubscribe();
   }, []);
+
 
   useEffect(() => {
     if (userId && authStep === 'loggedIn') {
@@ -160,7 +157,6 @@ const App: React.FC = () => {
   }, [userId, authStep]);
 
 
-  // Generate today's suggestion
   const generateTodaySuggestion = () => {
     try {
       const suggestions: OutfitData[] = [
@@ -187,7 +183,7 @@ const App: React.FC = () => {
     }
   };
 
-  // Handle profile creation and save to Firestore
+
   const handleProfileSave = async (profile: UserProfile) => {
     if (!userId) {
       console.error('No user logged in');
@@ -197,7 +193,6 @@ const App: React.FC = () => {
     try {
       setAuthStep('loading');
       
-      // ✅ Initialize subscription for new user
       profile.subscription = {
         tier: 'free',
         status: 'active',
@@ -205,21 +200,15 @@ const App: React.FC = () => {
       };
       profile.hasSeenPlanModal = false;
       
-      // Save to Firestore
       await saveUserProfile(userId, profile);
       
-      // Update local state
       setUserProfile(profile);
       setSubscriptionTier('free');
       
-      // Pre-fill form data
       if (profile.age) setAge(profile.age);
       if (profile.gender) setGender(profile.gender);
       if (profile.preferredOccasions && profile.preferredOccasions.length > 0) {
         setOccasion(profile.preferredOccasions[0]);
-      }
-      if (profile.preferredStyles && profile.preferredStyles.length > 0) {
-        setStyle(profile.preferredStyles[0]);
       }
       if (profile.favoriteColors) {
         setSelectedColors(profile.favoriteColors);
@@ -229,7 +218,6 @@ const App: React.FC = () => {
       generateTodaySuggestion();
       setupNotifications();
       
-      // ✅ Show plan modal for new user
       setShowPlanModal(true);
     } catch (error) {
       console.error('Error saving profile:', error);
@@ -238,7 +226,7 @@ const App: React.FC = () => {
     }
   };
 
-  // Setup notifications
+
   const setupNotifications = async () => {
     try {
       const permission = await requestNotificationPermission();
@@ -250,7 +238,7 @@ const App: React.FC = () => {
     }
   };
 
-  // ✅ FIXED: Handle plan selection
+
   const handlePlanSelect = async (tier: SubscriptionTier) => {
     setIsSelectingPlan(true);
     try {
@@ -260,7 +248,6 @@ const App: React.FC = () => {
       console.log('📦 Plan selected:', tier);
       
       if (tier === 'free') {
-        // ✅ FIXED: For FREE tier - close modal immediately
         console.log('✅ Free tier selected - closing modal');
         await markPlanModalSeen(userId);
         setShowPlanModal(false);
@@ -268,7 +255,6 @@ const App: React.FC = () => {
         return;
       }
 
-      // ✅ FIXED: For PAID tiers - open Lemon Squeezy checkout
       const variantId = getVariantIdFromTier(tier);
       if (!variantId) {
         throw new Error(`Invalid plan configuration for ${tier}`);
@@ -282,7 +268,6 @@ const App: React.FC = () => {
         customData: { user_id: userId },
       });
 
-      // ✅ Close modal after opening checkout
       await markPlanModalSeen(userId);
       setShowPlanModal(false);
       
@@ -294,7 +279,7 @@ const App: React.FC = () => {
     }
   };
 
-  // ✅ Handle subscription update
+
   const handleSubscriptionUpdated = async (newTier: SubscriptionTier) => {
     setSubscriptionTier(newTier);
     if (userProfile?.subscription) {
@@ -303,12 +288,12 @@ const App: React.FC = () => {
     }
   };
 
-  // ✅ Handle opening plan modal from anywhere
+
   const handleOpenPlanModal = () => {
     setShowPlanModal(true);
   };
 
-  // Handle logout
+
   const handleLogout = async () => {
     try {
       await auth.signOut();
@@ -327,7 +312,7 @@ const App: React.FC = () => {
     }
   };
 
-  // Handle color selection
+
   const handleColorSelect = (hex: string) => {
     setSelectedColors(prev => 
       prev.includes(hex) 
@@ -336,7 +321,7 @@ const App: React.FC = () => {
     );
   };
 
-  // Handle adding garment to wardrobe
+
   const handleAddToWardrobe = async (garment: Garment) => {
     if (!userId) {
       console.error('No user logged in');
@@ -352,7 +337,7 @@ const App: React.FC = () => {
     }
   };
 
-  // Handle updating wardrobe item
+
   const handleUpdateWardrobe = async (index: number, updatedGarment: Garment) => {
     if (!userId) {
       console.error('No user logged in');
@@ -370,7 +355,7 @@ const App: React.FC = () => {
     }
   };
 
-  // Handle deleting wardrobe item
+
   const handleDeleteFromWardrobe = async (index: number) => {
     if (!userId) {
       console.error('No user logged in');
@@ -387,7 +372,8 @@ const App: React.FC = () => {
     }
   };
 
-  // Handle style advice submission
+
+  // ✨ UPDATED: Changed 'style' to 'country'
   const handleSubmit = useCallback(async () => {
     if (!uploadedImage) {
       setError('Please upload a selfie first');
@@ -406,7 +392,7 @@ const App: React.FC = () => {
       const advice = await getStyleAdvice(
         uploadedImage,
         occasion,
-        style,
+        country,  // ✨ CHANGED: was 'style'
         age,
         gender,
         selectedColors,
@@ -420,7 +406,8 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [uploadedImage, occasion, style, age, gender, selectedColors, wardrobe, userProfile]);
+  }, [uploadedImage, occasion, country, age, gender, selectedColors, wardrobe, userProfile]);
+
 
   // ==================== RENDER FUNCTIONS ====================
   
@@ -446,11 +433,12 @@ const App: React.FC = () => {
                 setAge={setAge}
                 setGender={setGender}
               />
+              {/* ✨ UPDATED: Changed style/setStyle to country/setCountry */}
               <StyleSelector
                 occasion={occasion}
                 setOccasion={setOccasion}
-                style={style}
-                setStyle={setStyle}
+                country={country}
+                setCountry={setCountry}
               />
               <ColorSelector
                 selectedColors={selectedColors}
@@ -492,6 +480,7 @@ const App: React.FC = () => {
     </div>
   );
 
+
   const renderWardrobeView = () => (
     <WardrobeUploader 
       wardrobe={wardrobe} 
@@ -503,6 +492,7 @@ const App: React.FC = () => {
     />
   );
 
+
   const renderEditorView = () => (
     <ImageEditor 
       wardrobe={wardrobe}
@@ -511,13 +501,16 @@ const App: React.FC = () => {
     />
   );
 
+
   const renderColorMatrixView = () => (
     <ColorMatrix userProfile={userProfile} wardrobe={wardrobe} />
   );
 
+
   const renderCalendarView = () => (
     <CalendarPlan />
   );
+
 
   const renderSettingsView = () => (
     userProfile?.subscription && user && (
@@ -531,14 +524,11 @@ const App: React.FC = () => {
     )
   );
 
-  // ==========================================================
 
-  // Render loading state
   if (authStep === 'loading') {
     return <Loader />;
   }
 
-  // Render login/signup
   if (authStep === 'login') {
     return showSignup ? (
       <Signup
@@ -553,30 +543,23 @@ const App: React.FC = () => {
     );
   }
 
-  // Render profile creation
   if (authStep === 'profile') {
     return <ProfileCreation onProfileSave={handleProfileSave} />;
   }
 
-  // Main app UI
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200">
-      {/* ✅ PLAN SELECTION MODAL */}
       <PlanSelectionModal 
         isOpen={showPlanModal}
         onPlanSelect={handlePlanSelect}
         isLoading={isSelectingPlan}
         onClose={() => setShowPlanModal(false)}
-        currentTier={subscriptionTier} // ✅ ADD THIS LINE - CRITICAL!
-
+        currentTier={subscriptionTier}
       />
 
-      {/* ✅ RESPONSIVE HEADER/NAVBAR */}
       <header className="sticky top-0 z-50 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700 px-4 md:px-6 lg:px-8 py-3 md:py-4">
         <div className="max-w-full mx-auto">
-          {/* Desktop Layout */}
           <div className="hidden md:flex items-center justify-between gap-4">
-            {/* Left: Logo & Subscription Badge */}
             <div className="flex items-center gap-3 flex-shrink-0">
               <img 
                 src={logoImage} 
@@ -594,7 +577,6 @@ const App: React.FC = () => {
               </span>
             </div>
 
-            {/* Center: Navigation */}
             <nav className="flex items-center gap-2 flex-1 justify-center">
               {[
                 { view: 'stylist', icon: SparklesIcon, label: 'Selfie' },
@@ -617,7 +599,6 @@ const App: React.FC = () => {
               ))}
             </nav>
 
-            {/* Right: Buttons */}
             <div className="flex items-center gap-2 flex-shrink-0">
               {subscriptionTier === 'free' && (
                 <button
@@ -637,9 +618,7 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Mobile Layout */}
           <div className="md:hidden space-y-3">
-            {/* Top Row: Logo & Buttons */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-shrink-0">
                 <img 
@@ -676,7 +655,6 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Bottom: Navigation Grid */}
             <nav className="grid grid-cols-3 gap-2">
               {[
                 { view: 'stylist', icon: SparklesIcon, label: 'Selfie' },
@@ -702,7 +680,6 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && (
           <div className="mb-6 p-4 bg-red-900/30 border border-red-500/50 text-red-400 rounded-lg flex justify-between items-center">
@@ -719,7 +696,6 @@ const App: React.FC = () => {
         {view === 'settings' && renderSettingsView()}
       </main>
 
-      {/* ✅ LOGOUT CONFIRMATION MODAL */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-gray-800 border-2 border-gray-700 rounded-xl p-6 max-w-sm space-y-4 animate-fade-in-up">
@@ -743,10 +719,9 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Chatbot */}
       <Chatbot
-        subscriptionTier={subscriptionTier} // Pass from your auth/state
-        userId={userId || 'guest-user'} // Pass from your auth
+        subscriptionTier={subscriptionTier}
+        userId={userId || 'guest-user'}
       />
     </div>
   );

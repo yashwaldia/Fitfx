@@ -3,13 +3,26 @@ import type { UserProfile, Occasion, Style, Gender, AgeGroup, BodyType } from '.
 import { LogoIcon, SparklesIcon, WardrobeIcon, CameraIcon, UserCircleIcon } from './Icons';
 import ColorSelector from './ColorSelector';
 
+
 interface ProfileCreationProps {
   onProfileSave: (profile: UserProfile) => void;
 }
 
+
 const styles: Style[] = ['American', 'Indian', 'Fusion', 'Other'];
 const genders: Gender[] = ['Male', 'Female', 'Unisex', 'Kids'];
-const occasions: Occasion[] = ['Professional', 'Party', 'Casual', 'Other'];
+// ✨ UPDATED: 9 Occasions instead of 4
+const occasions: Occasion[] = [
+  'Traditional',
+  'Cultural',
+  'Modern',
+  'Casual',
+  'Festive',
+  'Wedding',
+  'Formal',
+  'Business',
+  'Street Fusion'
+];
 const ageGroups: AgeGroup[] = ['Teen (13-17)', 'Young Adult (18-25)', 'Adult (26-35)', 'Middle-Aged (36-45)', 'Senior (46+)'];
 const TOTAL_STEPS = 7;
 const bodyTypesWithDesc: { type: BodyType; description: string }[] = [
@@ -35,7 +48,9 @@ const bodyTypesWithDesc: { type: BodyType; description: string }[] = [
     { type: 'Plus Size', description: 'Fuller figure with balanced proportions' }
 ];
 
+
 const fabrics: string[] = ['Cotton', 'Linen', 'Silk', 'Wool', 'Denim', 'Leather', 'Velvet', 'Satin', 'Polyester', 'Rayon'];
+
 
 
 const Stepper: React.FC<{ step: number }> = ({ step }) => (
@@ -51,6 +66,7 @@ const Stepper: React.FC<{ step: number }> = ({ step }) => (
         </div>
     </div>
 );
+
 
 const SelectionButton = <T extends string,>({ item, selectedItems, onSelect, isMultiSelect = false }: {
     item: T;
@@ -72,6 +88,7 @@ const SelectionButton = <T extends string,>({ item, selectedItems, onSelect, isM
     </button>
   );
 };
+
 
 const DescriptionSelectionButton: React.FC<{
     item: { type: BodyType; description: string };
@@ -95,6 +112,7 @@ const DescriptionSelectionButton: React.FC<{
 };
 
 
+
 const ProfileCreation: React.FC<ProfileCreationProps> = ({ onProfileSave }) => {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
@@ -105,11 +123,13 @@ const ProfileCreation: React.FC<ProfileCreationProps> = ({ onProfileSave }) => {
   const [favoriteColors, setFavoriteColors] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [bodyType, setBodyType] = useState<BodyType | undefined>();
   const [preferredFabrics, setPreferredFabrics] = useState<string[]>([]);
   const [fashionIcons, setFashionIcons] = useState('');
   const photoInputRef = useRef<HTMLInputElement>(null);
+
 
   const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -130,9 +150,11 @@ const ProfileCreation: React.FC<ProfileCreationProps> = ({ onProfileSave }) => {
     }
   };
 
+
   const handlePhotoClick = () => {
     photoInputRef.current?.click();
   };
+
 
   const handleMultiSelect = <T extends string>(item: T, state: T[], setState: React.Dispatch<React.SetStateAction<T[]>>) => {
       setState(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]);
@@ -147,6 +169,7 @@ const ProfileCreation: React.FC<ProfileCreationProps> = ({ onProfileSave }) => {
     });
   };
 
+
   const handleSelectAllOccasions = () => {
     if (preferredOccasions.length === occasions.length) {
       setPreferredOccasions([]);
@@ -154,6 +177,7 @@ const ProfileCreation: React.FC<ProfileCreationProps> = ({ onProfileSave }) => {
       setPreferredOccasions([...occasions]);
     }
   };
+
 
   const handleSelectAllFabrics = () => {
     if (preferredFabrics.length === fabrics.length) {
@@ -164,6 +188,7 @@ const ProfileCreation: React.FC<ProfileCreationProps> = ({ onProfileSave }) => {
   };
 
 
+
   const nextStep = () => {
     setError(null);
     if (step === 1 && !name.trim()) { setError("Please enter your name."); return; }
@@ -171,12 +196,14 @@ const ProfileCreation: React.FC<ProfileCreationProps> = ({ onProfileSave }) => {
     if (step === 3 && !bodyType) { setError("Please select your body type."); return; }
     if (step === 4 && !age.trim()) { setError("Please select an age group or enter an age."); return; }
 
+
     if (step < TOTAL_STEPS) setStep(s => s + 1);
   };
   
   const prevStep = () => {
     if (step > 1) setStep(s => s - 1);
   };
+
 
   const handleSave = () => {
     const profile: UserProfile = {
@@ -208,6 +235,7 @@ const ProfileCreation: React.FC<ProfileCreationProps> = ({ onProfileSave }) => {
                               </div>
                               <input type="file" ref={photoInputRef} onChange={handlePhotoUpload} accept="image/png, image/jpeg" className="hidden" />
                           </div>
+
 
                            <div>
                                 <label htmlFor="name" className="block text-sm font-medium text-gray-400 mb-2">First, what should we call you?</label>
@@ -278,7 +306,7 @@ const ProfileCreation: React.FC<ProfileCreationProps> = ({ onProfileSave }) => {
                                         {preferredOccasions.length === occasions.length ? 'Deselect All' : 'Select All'}
                                     </button>
                                 </div>
-                               <div className="flex flex-wrap justify-center items-center gap-2 max-w-lg mx-auto p-2 bg-gray-900 rounded-lg">
+                               <div className="flex flex-wrap justify-center items-center gap-2 max-w-2xl mx-auto p-2 bg-gray-900 rounded-lg">
                                     {occasions.map(o => <SelectionButton key={o} item={o} selectedItems={preferredOccasions} onSelect={(item) => handleMultiSelect(item, preferredOccasions, setPreferredOccasions)} isMultiSelect />)}
                                </div>
                            </div>
@@ -321,6 +349,7 @@ const ProfileCreation: React.FC<ProfileCreationProps> = ({ onProfileSave }) => {
       }
   }
 
+
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -359,5 +388,6 @@ const ProfileCreation: React.FC<ProfileCreationProps> = ({ onProfileSave }) => {
     </div>
   );
 };
+
 
 export default ProfileCreation;

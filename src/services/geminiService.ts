@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type, Modality, Chat } from "@google/genai";
-import type { Occasion, Style, StyleAdvice, Gender, Garment, UserProfile, SubscriptionTier } from '../types';
+// ✨ UPDATED: Import Country and AIGeneratedDressRow
+import type { Occasion, Country, StyleAdvice, Gender, Garment, UserProfile, SubscriptionTier, AIGeneratedDressRow } from '../types';
 
 const API_KEY = process.env.REACT_APP_GEMINI_API;
 const IMAGE_API_KEY = process.env.REACT_APP_GEMINI_IMAGE_API;
@@ -33,6 +34,20 @@ const outfitIdeaSchema = {
     required: ["outfitName", "colorName", "fabricType", "idealOccasion", "whyItWorks", "suggestedPairingItems"]
 };
 
+// ✨ NEW: Schema for AI-Generated Dress Matrix
+const dressMatrixRowSchema = {
+    type: Type.OBJECT,
+    properties: {
+        country: { type: Type.STRING, description: "Country/Region (e.g., 'India', 'USA', 'Japan', 'France', 'Africa (Nigeria, Ghana, Kenya)', 'Arab Region')" },
+        gender: { type: Type.STRING, description: "Gender (e.g., 'Male', 'Female', 'Unisex')" },
+        dressName: { type: Type.STRING, description: "Creative name of the dress/outfit tailored to this user" },
+        description: { type: Type.STRING, description: "Detailed description explaining why this dress suits THIS user's skin tone, age, style, and preferences" },
+        occasion: { type: Type.STRING, description: "When this outfit should be worn" },
+        notes: { type: Type.STRING, description: "Cultural context, styling tips, or unique details about this dress" }
+    },
+    required: ["country", "gender", "dressName", "description", "occasion", "notes"]
+};
+
 const styleAdviceSchema = {
     type: Type.OBJECT,
     properties: {
@@ -42,13 +57,13 @@ const styleAdviceSchema = {
         },
         colorPalette: {
             type: Type.ARRAY,
-            description: "An array of 5 key colors that are flattering for the user, derived from their selfie and the recommended outfits. Each color should have a name, a hex code, and a brief description.",
+            description: "An array of 5 key colors that are flattering for the user.",
             items: {
                 type: Type.OBJECT,
                 properties: {
                     colorName: { type: Type.STRING, description: "The name of the color, e.g., 'Deep Navy'." },
                     hexCode: { type: Type.STRING, description: "The hexadecimal code for the color, e.g., '#000080'." },
-                    description: { type: Type.STRING, description: "A short reason why this color is recommended for the user, e.g., 'Brings out the warmth in your skin tone.'" }
+                    description: { type: Type.STRING, description: "A short reason why this color is recommended for the user." }
                 },
                 required: ["colorName", "hexCode", "description"]
             }
@@ -63,32 +78,39 @@ const styleAdviceSchema = {
             description: "An array of 1 to 3 outfit ideas that specifically use items from the user's provided wardrobe. If the wardrobe is empty, this should be an empty array.",
             items: outfitIdeaSchema
         },
+        // ✨ NEW: AI-Generated Dress Matrix
+        generatedDressMatrix: {
+            type: Type.ARRAY,
+            description: "An array of 5-10 AI-GENERATED dress recommendations SPECIFICALLY tailored to THIS user's country, gender, occasion, skin tone, age, and personal style. Each row should be PERSONALIZED - NOT generic.",
+            items: dressMatrixRowSchema
+        },
         materialAdvice: {
             type: Type.STRING,
-            description: "Specific advice on the best fabric materials for the user, considering the season and occasion, explaining properties like drape, feel, and breathability."
+            description: "Specific advice on the best fabric materials for the user, considering the season and occasion."
         },
         motivationalNote: {
             type: Type.STRING,
             description: "A short, positive, and motivational closing note like 'Confidence is your best accessory.'"
         }
     },
-    required: ["fashionSummary", "colorPalette", "outfitIdeas", "wardrobeOutfitIdeas", "materialAdvice", "motivationalNote"]
+    required: ["fashionSummary", "colorPalette", "outfitIdeas", "wardrobeOutfitIdeas", "generatedDressMatrix", "materialAdvice", "motivationalNote"]
 };
 
 // NEW: Subscription-aware outfit count
 const getOutfitCount = (tier: SubscriptionTier): number => {
   switch(tier) {
     case 'free': return 3;
-    case 'style_plus': return 999; // Unlimited (practical limit)
-    case 'style_x': return 999;    // Unlimited (practical limit)
+    case 'style_plus': return 999;
+    case 'style_x': return 999;
     default: return 3;
   }
 };
 
+// ✨ UPDATED: Changed 'style: Style' to 'country: Country'
 export const getStyleAdvice = async (
   imageBase64: string,
   occasion: Occasion,
-  style: Style,
+  country: Country,
   age: string,
   gender: Gender,
   preferredColors: string[],
@@ -111,7 +133,6 @@ export const getStyleAdvice = async (
   
   const profilePreferencesText = userProfile ? `
       - User's general preferences (for context, if available):
-        - Preferred Styles: ${userProfile.preferredStyles.join(', ')}
         - Preferred Occasions: ${userProfile.preferredOccasions.join(', ')}
         ${userProfile.bodyType ? `- Body Type: ${userProfile.bodyType}` : ''}
         ${userProfile.preferredFabrics && userProfile.preferredFabrics.length > 0 ? `- Preferred Fabrics: ${userProfile.preferredFabrics.join(', ')}` : ''}
@@ -131,22 +152,32 @@ export const getStyleAdvice = async (
       - Age: ${age}
       - Gender: ${gender}
       - Occasion: ${occasion}
-      - Style: ${style}
+      - Country/Region: ${country}
       ${preferredColorsText}
       ${wardrobeText}
       ${profilePreferencesText}
 
       Your response MUST be in JSON format and adhere to the provided schema.
 
-      **Instructions:**
-      1.  **Analyze & Summarize:** In 'fashionSummary', write a warm, personalized paragraph. Mention their likely skin undertone and suggest colors that would be flattering, keeping their age, gender, and **body type** in mind for appropriate recommendations on silhouettes and fits. If the user provided preferred colors, acknowledge them.
-      2.  **Create Color Palette:** Based on the selfie's dominant colors (hair, skin, background) and your recommended outfits, create a 'colorPalette' of exactly 5 key colors. Prioritize including the user's preferred colors if they are flattering. For each, provide a name, hex code, and a brief 'description' explaining why it's a great choice for the user.
-      3.  **Create General Outfit Ideas:** Provide ${outfitDescription} new outfit ideas in the 'outfitIdeas' array. Each idea must be practical, stylish, and appropriate for the user's age, gender, and **body type**. Try to incorporate the user's preferred colors and **fabrics** into these outfits where they fit well. For 'suggestedPairingItems', list specific clothing items (e.g., "navy blue blazer, crisp white shirt, tan chinos").
-      4.  **Create Outfits From Wardrobe:** If the user's wardrobe is not empty, create 1 to 3 outfit ideas in the 'wardrobeOutfitIdeas' array. These outfits MUST use at least one item from the 'User's Wardrobe Items' list. For 'suggestedPairingItems', list the items from their wardrobe being used, plus any *new* items needed to complete the look (as "Smart Buy" suggestions). If the wardrobe is empty, return an empty array for 'wardrobeOutfitIdeas'.
-      5.  **Give Detailed Material Advice:** In 'materialAdvice', go beyond just listing fabrics. Provide a detailed, visually descriptive paragraph. Explain *why* certain materials are recommended. Consider the user's **preferred fabrics**. For example, discuss the 'drape' of silk for Indian party wear, the 'breathability' of linen for American casual summer wear, or the 'structure' of wool for a professional suit. Connect the fabric choice directly to the selected occasion, style, and likely season inferred from the selfie's context. Your advice should be practical and help the user understand the feel and look of the fabric.
-      6.  **End with a Motivational Note:** Provide a short, uplifting message in 'motivationalNote'.
+      **CRITICAL INSTRUCTIONS:**
+      1. **Analyze & Summarize:** In 'fashionSummary', write a warm, personalized paragraph about THIS user's best colors and styles based on their selfie, skin tone, age, gender, and body type.
+      2. **Create Color Palette:** Create exactly 5 key colors with hex codes that are flattering for THIS specific user.
+      3. **Create General Outfit Ideas:** Provide ${outfitDescription} outfit ideas appropriate for the user's age, gender, and body type.
+      4. **Create Wardrobe Outfits:** If wardrobe is not empty, create 1-3 outfit ideas using those items. If empty, return empty array.
+      5. **GENERATE PERSONALIZED DRESS MATRIX:** ✨ THIS IS CRITICAL!
+         In 'generatedDressMatrix', create 5-10 dress recommendations that are:
+         - COUNTRY SET: ${country}
+         - GENDER SET: ${gender}
+         - OCCASION SET: ${occasion}
+         - HIGHLY PERSONALIZED to THIS user's selfie, skin tone, age, body type, and preferences
+         - NOT generic or templated - each dress should feel custom-made for this person
+         - Include creative dress names based on user's style
+         - Write descriptions explaining WHY each dress suits THIS specific user
+         - Add styling notes and cultural context
+      6. **Give Material Advice:** Detailed fabric recommendations considering season and occasion.
+      7. **End with Motivational Note:** Short, uplifting message.
 
-      Be confident, expert, and positive. Your advice should feel like it's coming from a personal designer who understands both Western (American) and Indian fashion. Tailor suggestions to be flattering for the user's specified **body type**.
+      🎯 KEY: The dress matrix should feel PERSONALIZED, not like a generic template. Each dress should be selected specifically for THIS user.
     `
   };
 

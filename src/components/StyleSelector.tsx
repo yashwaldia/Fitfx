@@ -1,15 +1,35 @@
 import React from 'react';
-import type { Occasion, Style } from '../types';
+import type { Occasion, Country } from '../types';
 
 interface StyleSelectorProps {
   occasion: Occasion;
   setOccasion: (occasion: Occasion) => void;
-  style: Style;
-  setStyle: (style: Style) => void;
+  country: Country;
+  setCountry: (country: Country) => void;
 }
 
-const occasions: Occasion[] = ['Professional', 'Party', 'Casual', 'Other'];
-const styles: Style[] = ['American', 'Indian', 'Fusion'];
+// ✨ UPDATED: 9 Occasions instead of 4
+const occasions: Occasion[] = [
+  'Traditional',
+  'Cultural',
+  'Modern',
+  'Casual',
+  'Festive',
+  'Wedding',
+  'Formal',
+  'Business',
+  'Street Fusion'
+];
+
+// ✨ UPDATED: 6 Countries instead of 3 Styles
+const countries: Country[] = [
+  'India',
+  'USA',
+  'Japan',
+  'France',
+  'Africa (Nigeria, Ghana, Kenya)',
+  'Arab Region'
+];
 
 // The props for the NeumorphicButton component.
 interface NeumorphicButtonProps<T> {
@@ -43,22 +63,46 @@ const NeumorphicButton = <T,>({
   );
 };
 
-const StyleSelector: React.FC<StyleSelectorProps> = ({ occasion, setOccasion, style, setStyle }) => {
+const StyleSelector: React.FC<StyleSelectorProps> = ({
+  occasion,
+  setOccasion,
+  country,
+  setCountry,
+}) => {
   return (
     <div className="space-y-6">
+      {/* ✨ SECTION 1: Choose the Occasion (9 options) */}
       <div className="bg-gray-800/50 rounded-2xl p-6 shadow-[5px_5px_10px_#1a1a1a,_-5px_-5px_10px_#2c2c2c] border border-gray-700">
-        <h3 className="text-lg font-semibold text-yellow-400 mb-4 text-center">Choose the Occasion</h3>
-        <div className="flex justify-center items-center gap-2 md:gap-4 p-2 bg-gray-900 rounded-full">
+        <h3 className="text-lg font-semibold text-yellow-400 mb-4 text-center">
+          Choose the Occasion
+        </h3>
+        <div className="flex flex-wrap justify-center items-center gap-2 p-2 bg-gray-900 rounded-full">
           {occasions.map((o) => (
-            <NeumorphicButton<Occasion> key={o} label={o} value={o} selectedValue={occasion} onClick={setOccasion} />
+            <NeumorphicButton<Occasion>
+              key={o}
+              label={o}
+              value={o}
+              selectedValue={occasion}
+              onClick={setOccasion}
+            />
           ))}
         </div>
       </div>
+
+      {/* ✨ SECTION 2: Select Your Country (6 options - replaced "Style") */}
       <div className="bg-gray-800/50 rounded-2xl p-6 shadow-[5px_5px_10px_#1a1a1a,_-5px_-5px_10px_#2c2c2c] border border-gray-700">
-        <h3 className="text-lg font-semibold text-yellow-400 mb-4 text-center">Select Your Style</h3>
-        <div className="flex justify-center items-center gap-2 md:gap-4 p-2 bg-gray-900 rounded-full">
-          {styles.map((s) => (
-            <NeumorphicButton<Style> key={s} label={s} value={s} selectedValue={style} onClick={setStyle} />
+        <h3 className="text-lg font-semibold text-yellow-400 mb-4 text-center">
+          Select Your Country
+        </h3>
+        <div className="flex flex-wrap justify-center items-center gap-2 p-2 bg-gray-900 rounded-full">
+          {countries.map((c) => (
+            <NeumorphicButton<Country>
+              key={c}
+              label={c}
+              value={c}
+              selectedValue={country}
+              onClick={setCountry}
+            />
           ))}
         </div>
       </div>

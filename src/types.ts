@@ -4,8 +4,30 @@ export interface ColorPaletteItem {
   description: string;
 }
 
-export type Occasion = 'Professional' | 'Party' | 'Casual' | 'Other';
+// ✨ UPDATED: 9 Occasions instead of 4
+export type Occasion =
+  | 'Traditional'
+  | 'Cultural'
+  | 'Modern'
+  | 'Casual'
+  | 'Festive'
+  | 'Wedding'
+  | 'Formal'
+  | 'Business'
+  | 'Street Fusion';
+
+// ✨ NEW: Country type to replace Style
+export type Country =
+  | 'India'
+  | 'USA'
+  | 'Japan'
+  | 'France'
+  | 'Africa (Nigeria, Ghana, Kenya)'
+  | 'Arab Region';
+
+// ✅ KEPT FOR BACKWARD COMPATIBILITY (Optional - can be removed later)
 export type Style = 'American' | 'Indian' | 'Fusion' | 'Other';
+
 export type Gender = 'Male' | 'Female' | 'Unisex' | 'Kids';
 export type AgeGroup = 'Teen (13-17)' | 'Young Adult (18-25)' | 'Adult (26-35)' | 'Middle-Aged (36-45)' | 'Senior (46+)';
 
@@ -48,11 +70,11 @@ export interface Subscription {
 
 // ✅ Feature Limits per Tier
 export interface FeatureLimits {
-  colorSuggestions: number; // Max color suggestions
-  outfitPreviews: number; // Max outfit generations per request
-  wardrobeLimit: number; // Max wardrobe items (0 = disabled, -1 = unlimited)
-  imageEditorAccess: boolean; // Can access Image Editor
-  batchGeneration: boolean; // Can generate multiple variations
+  colorSuggestions: number;
+  outfitPreviews: number;
+  wardrobeLimit: number;
+  imageEditorAccess: boolean;
+  batchGeneration: boolean;
   chatbotAccess: 'basic' | 'standard' | 'premium';
 }
 
@@ -73,11 +95,23 @@ export interface OutfitIdea {
   suggestedPairingItems: string;
 }
 
+// ✨ NEW: AI-Generated Dress Matrix Row
+export interface AIGeneratedDressRow {
+  country: Country;
+  gender: Gender;
+  dressName: string;
+  description: string;
+  occasion: Occasion;
+  notes: string;
+}
+
 export interface StyleAdvice {
   fashionSummary: string;
   colorPalette: ColorPaletteItem[];
   outfitIdeas: OutfitIdea[];
   wardrobeOutfitIdeas?: OutfitIdea[];
+  // ✨ NEW: AI-Generated Dress Matrix
+  generatedDressMatrix: AIGeneratedDressRow[];
   materialAdvice: string;
   motivationalNote: string;
 }
@@ -99,8 +133,8 @@ export interface UserProfile {
   bodyType?: BodyType;
   preferredFabrics: string[];
   fashionIcons: string;
-  hasSeenPlanModal?: boolean; // ✅ NEW: Track if user saw plan modal
-  subscription?: Subscription; // ✅ NEW: Uses the Subscription interface
+  hasSeenPlanModal?: boolean;
+  subscription?: Subscription;
 }
 
 export interface OutfitData {
@@ -121,5 +155,5 @@ export interface PlanConfig {
   features: string[];
   limits: FeatureLimits;
   popular?: boolean;
-  lemonsqueezyVariantId?: string; // For payment integration
+  lemonsqueezyVariantId?: string;
 }
