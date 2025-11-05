@@ -1,15 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { UploadIcon, ShirtIcon, TrashIcon, EditIcon } from './Icons';
 import type { Garment } from '../types';
 import { compressImageToBase64 } from '../services/firestoreService';
 import SubscriptionExpiredNotice from './SubscriptionExpiredNotice';
 import type { SubscriptionTier } from '../types';
 
+
 const WARDROBE_LIMITS = {
   free: 1,
-  style_plus: 7,
+  style_plus: 10,
   style_x: -1,
 };
+
 
 interface WardrobeUploaderProps {
   wardrobe: Garment[];
@@ -19,6 +21,7 @@ interface WardrobeUploaderProps {
   subscriptionTier: SubscriptionTier;
   subscriptionEndDate?: string;
 }
+
 
 const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
   wardrobe,
@@ -44,10 +47,12 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
     return new Date() > endDate;
   };
 
+
   const getWardrobeLimit = () => {
     const tier = isSubscriptionExpired() ? 'free' : subscriptionTier;
     return WARDROBE_LIMITS[tier] || WARDROBE_LIMITS.free;
   };
+
 
   const getVisibleWardrobe = () => {
     if (isSubscriptionExpired() && subscriptionTier !== 'free') {
@@ -58,24 +63,27 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
     return wardrobe.slice(0, limit);
   };
 
+
   const canAddMoreItems = () => {
+    if (editingItem) return true;
     const limit = getWardrobeLimit();
-    const visibleItems = getVisibleWardrobe().length;
     if (limit === -1) return true;
-    return visibleItems < limit;
+    return wardrobe.length < limit;
   };
+
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       if (!editingItem && !canAddMoreItems()) {
         if (subscriptionTier === 'free') {
-          setError(`❌ Free tier: Maximum 1 item. Upgrade to Style+ for 7 items.`);
+          setError(`❌ Free tier: Cannot upload wardrobe items. Upgrade to Style+ for 10 items.`);
         } else if (subscriptionTier === 'style_plus') {
-          setError(`❌ Style+ tier: Maximum 7 items. Upgrade to StyleX for unlimited.`);
+          setError(`❌ Style+ tier: Maximum 10 items reached. Upgrade to StyleX for unlimited.`);
         }
         return;
       }
+
       if (file.size > 4 * 1024 * 1024) {
         setError('File is too large. Please upload an image under 4MB.');
         return;
@@ -96,9 +104,11 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
     }
   };
 
+
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
+
 
   const handleSave = () => {
     if (!garmentImage || !material || !color) {
@@ -128,12 +138,14 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
     setError(null);
   };
 
+
   const handleDelete = (index: number) => {
     if (window.confirm('Are you sure you want to delete this item from your wardrobe?')) {
       onDeleteFromWardrobe(index);
       setMenuOpen(null);
     }
   };
+
 
   const handleEdit = (index: number, item: Garment) => {
     setEditingItem({ index, item });
@@ -144,10 +156,12 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
 
+
   const handlePreview = (image: string) => {
     setPreviewImage(image);
     setMenuOpen(null);
   };
+
 
   const handleCancelEdit = () => {
     setEditingItem(null);
@@ -157,8 +171,14 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
     setError(null);
   };
 
+
   const visibleWardrobe = getVisibleWardrobe();
   const wardrobeLimit = getWardrobeLimit();
+  
+  // ✅ FIXED: Normalize tier comparison
+  const isPaidTier = subscriptionTier === 'style_plus' || subscriptionTier === 'style_x';
+  const isStyleX = subscriptionTier === 'style_x';
+
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -169,10 +189,14 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
         />
       )}
 
-      {wardrobe.length > 0 && (
+
+      {/* Show wardrobe only for paid tiers with items */}
+      {isPaidTier && wardrobe.length > 0 && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-semibold text-yellow-400 text-center flex-1">Your Wardrobe ({visibleWardrobe.length} items)</h3>
+            <h3 className="text-xl font-semibold text-yellow-400 text-center flex-1">
+              Your Wardrobe ({visibleWardrobe.length} items)
+            </h3>
             <div className="text-xs text-gray-400">
               {wardrobeLimit === -1 ? (
                 <span className="text-blue-400">✅ Unlimited (StyleX)</span>
@@ -237,87 +261,101 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
         </div>
       )}
 
-      <div className="bg-gray-800/50 rounded-2xl p-6 shadow-[5px_5px_10px_#1a1a1a,_-5px_-5px_10px_#2c2c2c] border border-gray-700">
-        <h2 className="text-2xl font-semibold text-yellow-400 mb-2 text-center">
-          {editingItem ? 'Edit Wardrobe Item' : 'Add to Your Wardrobe'}
-        </h2>
-        <p className="text-gray-400 mb-6 text-center">
-          {editingItem ? 'Update your clothing details' : 'Upload photos of your clothes so our AI can help you style them.'}
-        </p>
 
-        <div className="flex flex-col md:flex-row items-center gap-6">
-          <div className="relative w-40 h-40 rounded-2xl flex-shrink-0 bg-gray-700 shadow-inner overflow-hidden flex items-center justify-center">
-            {garmentImage ? (
-              <img src={garmentImage} alt="Garment preview" className="w-full h-full object-cover" />
-            ) : (
-              <ShirtIcon className="w-24 h-24 text-gray-500" />
-            )}
-            {isUploading && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-400"></div>
-              </div>
-            )}
+      {/* ✅ FIXED: Upload form - Show ONLY for paid tiers */}
+      {isPaidTier ? (
+        <div className="bg-gray-800/50 rounded-2xl p-6 shadow-[5px_5px_10px_#1a1a1a,_-5px_-5px_10px_#2c2c2c] border border-gray-700">
+          <h2 className="text-2xl font-semibold text-yellow-400 mb-2 text-center">
+            {editingItem ? 'Edit Wardrobe Item' : 'Add to Your Wardrobe'}
+          </h2>
+          <p className="text-gray-400 mb-6 text-center">
+            {editingItem ? 'Update your clothing details' : 'Upload photos of your clothes so our AI can help you style them.'}
+          </p>
+
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            <div className="relative w-40 h-40 rounded-2xl flex-shrink-0 bg-gray-700 shadow-inner overflow-hidden flex items-center justify-center">
+              {garmentImage ? (
+                <img src={garmentImage} alt="Garment preview" className="w-full h-full object-cover" />
+              ) : (
+                <ShirtIcon className="w-24 h-24 text-gray-500" />
+              )}
+              {isUploading && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-400"></div>
+                </div>
+              )}
+            </div>
+            <div className="w-full space-y-4">
+              <button
+                onClick={handleUploadClick}
+                disabled={isUploading}
+                className="w-full inline-flex items-center justify-center px-6 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 transition-all duration-300 ease-in-out hover:bg-yellow-400 hover:text-gray-900 hover:border-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <UploadIcon className="w-5 h-5 mr-2" />
+                {isUploading ? 'Compressing...' : garmentImage ? 'Change Photo' : 'Choose Photo'}
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/png, image/jpeg, image/jpg"
+                className="hidden"
+              />
+              <input
+                type="text"
+                value={material}
+                onChange={(e) => setMaterial(e.target.value)}
+                placeholder="Material (e.g., Cotton, Silk, Denim)"
+                className="w-full bg-gray-900 text-gray-200 rounded-full p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:ring-0 outline-none transition-colors duration-300"
+                disabled={isUploading}
+              />
+              <input
+                type="text"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                placeholder="Color (e.g., Navy Blue, Black)"
+                className="w-full bg-gray-900 text-gray-200 rounded-full p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:ring-0 outline-none transition-colors duration-300"
+                disabled={isUploading}
+              />
+            </div>
           </div>
-          <div className="w-full space-y-4">
+
+          {!editingItem && subscriptionTier === 'style_plus' && wardrobe.length >= 10 && (
+            <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-3 text-blue-300 text-sm mt-4">
+              🔒 You've reached the 10 item limit for Style+. Upgrade to StyleX for unlimited.
+            </div>
+          )}
+
+          {error && <p className="text-red-400 mt-4 text-sm text-center">{error}</p>}
+          <div className="flex gap-3 mt-6 justify-center">
+            {editingItem && (
+              <button
+                onClick={handleCancelEdit}
+                className="px-8 py-3 bg-gray-700 text-gray-200 font-semibold rounded-full hover:bg-gray-600 transition-all duration-300"
+              >
+                Cancel
+              </button>
+            )}
             <button
-              onClick={handleUploadClick}
-              disabled={isUploading}
-              className="w-full inline-flex items-center justify-center px-6 py-2 bg-gray-700 text-yellow-400 font-semibold rounded-full border-2 border-yellow-400/50 transition-all duration-300 ease-in-out hover:bg-yellow-400 hover:text-gray-900 hover:border-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleSave}
+              disabled={isUploading || (!editingItem && !canAddMoreItems())}
+              className="px-8 py-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-gray-900 font-semibold rounded-full shadow-lg shadow-yellow-500/30 transition-all duration-300 ease-in-out hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <UploadIcon className="w-5 h-5 mr-2" />
-              {isUploading ? 'Compressing...' : garmentImage ? 'Change Photo' : 'Choose Photo'}
+              {isUploading ? 'Processing...' : editingItem ? 'Update Item' : 'Save to Wardrobe'}
             </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept="image/png, image/jpeg, image/jpg"
-              className="hidden"
-            />
-            <input
-              type="text"
-              value={material}
-              onChange={(e) => setMaterial(e.target.value)}
-              placeholder="Material (e.g., Cotton, Silk, Denim)"
-              className="w-full bg-gray-900 text-gray-200 rounded-full p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:ring-0 outline-none transition-colors duration-300"
-              disabled={isUploading}
-            />
-            <input
-              type="text"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              placeholder="Color (e.g., Navy Blue, Black)"
-              className="w-full bg-gray-900 text-gray-200 rounded-full p-2 px-4 border-2 border-gray-700 focus:border-yellow-400/50 focus:ring-0 outline-none transition-colors duration-300"
-              disabled={isUploading}
-            />
           </div>
         </div>
-
-        {!editingItem && !canAddMoreItems() && (
-          <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-3 text-blue-300 text-sm mt-4">
-            🔒 You've reached the wardrobe limit for your plan. Upgrade to add more items.
-          </div>
-        )}
-
-        {error && <p className="text-red-400 mt-4 text-sm text-center">{error}</p>}
-        <div className="flex gap-3 mt-6 justify-center">
-          {editingItem && (
-            <button
-              onClick={handleCancelEdit}
-              className="px-8 py-3 bg-gray-700 text-gray-200 font-semibold rounded-full hover:bg-gray-600 transition-all duration-300"
-            >
-              Cancel
-            </button>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={isUploading || (!editingItem && !canAddMoreItems())}
-            className="px-8 py-3 bg-gradient-to-r from-yellow-400 to-yellow-600 text-gray-900 font-semibold rounded-full shadow-lg shadow-yellow-500/30 transition-all duration-300 ease-in-out hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isUploading ? 'Processing...' : editingItem ? 'Update Item' : 'Save to Wardrobe'}
+      ) : (
+        /* ✅ Show locked message ONLY for FREE tier */
+        <div className="bg-gray-800/50 rounded-2xl p-8 border-2 border-yellow-400/30 text-center">
+          <h3 className="text-xl font-bold text-yellow-400 mb-3">🔒 Wardrobe Feature Locked</h3>
+          <p className="text-gray-300 mb-4">Upgrade to Style+ or StyleX to start building your wardrobe!</p>
+          <button className="px-6 py-2 bg-yellow-400 text-gray-900 font-bold rounded-full hover:bg-yellow-500 transition-all">
+            Upgrade Plan
           </button>
         </div>
-      </div>
+      )}
+
 
       {previewImage && (
         <div
@@ -352,5 +390,6 @@ const WardrobeUploader: React.FC<WardrobeUploaderProps> = ({
     </div>
   );
 };
+
 
 export default WardrobeUploader;

@@ -498,7 +498,7 @@ const App: React.FC = () => {
       onAddToWardrobe={handleAddToWardrobe}
       onUpdateWardrobe={handleUpdateWardrobe}
       onDeleteFromWardrobe={handleDeleteFromWardrobe}
-      subscriptionTier={'free'}
+      subscriptionTier={subscriptionTier}
       subscriptionEndDate={undefined}
     />
   );
