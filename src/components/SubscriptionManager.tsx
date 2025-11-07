@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { openLemonCheckout, getVariantIdFromTier } from '../services/lemonSqueezyService';
+import { redirectToRazorpayLink } from '../services/razorpayService';
 import { updateSubscriptionTier, cancelSubscription } from '../services/firestoreService';
 import { SUBSCRIPTION_PLANS, getPlanByTier } from '../constants/subscriptionPlans';
 import { SparklesIcon } from './Icons';
 import type { SubscriptionTier, UserProfile } from '../types';
-
 
 interface SubscriptionManagerProps {
   userProfile: UserProfile;
@@ -13,7 +12,6 @@ interface SubscriptionManagerProps {
   onSubscriptionUpdated: (newTier: SubscriptionTier) => void;
   onOpenPlanModal?: () => void;
 }
-
 
 const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
   userProfile,
@@ -24,13 +22,15 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Safe null coalescing with fallback
   const currentTier = userProfile?.subscription?.tier ?? 'free';
   const currentPlan = getPlanByTier(currentTier);
   const subscription = userProfile?.subscription;
 
-  // Helper function to get plan features display
+  /**
+   * Helper function to get plan features display
+   */
   const getPlanFeatureDisplay = (tier: SubscriptionTier) => {
     const displays = {
       free: {
@@ -58,42 +58,49 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
     return displays[tier] || displays.free;
   };
 
+  /**
+   * ✨ Handle upgrade via Razorpay Payment Link
+   */
   const handleUpgrade = async (tier: 'style_plus' | 'style_x') => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const variantId = getVariantIdFromTier(tier);
-      if (!variantId) {
-        throw new Error('Invalid plan variant');
-      }
-
-      // Open Lemon Squeezy checkout
-      await openLemonCheckout({
-        variantId,
-        email: userEmail,
-        customData: {
-          user_id: userId,
-        },
-      });
+      console.log(`💳 Initiating Razorpay upgrade for tier: ${tier}`);
+      
+      // Redirect to Razorpay payment link
+      redirectToRazorpayLink(tier);
 
       setIsLoading(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to open checkout');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to open payment';
+      setError(errorMessage);
+      console.error('❌ Upgrade error:', errorMessage);
       setIsLoading(false);
     }
   };
 
+  /**
+   * Handle cancel subscription
+   */
   const handleCancel = async () => {
-    if (window.confirm('Are you sure you want to cancel your subscription? You will be downgraded to Free tier.')) {
+    if (
+      window.confirm(
+        'Are you sure you want to cancel your subscription? You will be downgraded to Free tier.'
+      )
+    ) {
       setIsLoading(true);
       setError(null);
 
       try {
+        await cancelSubscription(userId);
         onSubscriptionUpdated('free');
+        console.log('✅ Subscription cancelled');
         setIsLoading(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to cancel subscription');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to cancel subscription';
+        setError(errorMessage);
+        console.error('❌ Cancellation error:', errorMessage);
         setIsLoading(false);
       }
     }
@@ -102,36 +109,44 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
   return (
     <div className="space-y-6 animate-fade-in-up">
       <div className="bg-gray-800/50 rounded-2xl p-8 border border-gray-700">
-        <h2 className="text-3xl font-bold text-yellow-400 mb-6">Subscription Settings</h2>
+        <h2 className="text-3xl font-bold text-yellow-400 mb-6">
+          💳 Subscription Settings
+        </h2>
 
         {/* Current Plan */}
         <div className="bg-gray-900/50 rounded-xl p-6 mb-6 border border-gray-700">
           <h3 className="text-lg font-semibold text-gray-300 mb-3">Current Plan</h3>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
               <p className="text-3xl font-bold text-yellow-400">{currentPlan?.name}</p>
               <p className="text-gray-400 mt-1">
-                {currentTier === 'free'
-                  ? 'Start free, upgrade anytime'
-                  : `₹${currentPlan?.price}/month`}
+                {currentTier === 'free' ? (
+                  'Start free, upgrade anytime'
+                ) : (
+                  <>
+                    ₹<span className="text-yellow-300">{currentPlan?.price}</span>/month
+                  </>
+                )}
               </p>
               {subscription?.startDate && (
                 <p className="text-sm text-gray-500 mt-2">
-                  Since {new Date(subscription.startDate).toLocaleDateString()}
+                  Since {new Date(subscription.startDate).toLocaleDateString('en-IN')}
                 </p>
               )}
             </div>
-            
+
             {/* Status Badge & Upgrade Button */}
             <div className="flex flex-col items-end gap-3">
-              <span className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap ${
-                currentTier === 'free'
-                  ? 'bg-gray-700 text-gray-300'
-                  : 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/50'
-              }`}>
+              <span
+                className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap ${
+                  currentTier === 'free'
+                    ? 'bg-gray-700 text-gray-300'
+                    : 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/50'
+                }`}
+              >
                 {subscription?.status === 'active' ? '✓ Active' : '⚠ ' + (subscription?.status ?? 'unknown')}
               </span>
-              
+
               {/* Upgrade Button - Visible when not on StyleX tier */}
               {onOpenPlanModal && currentTier !== 'style_x' && (
                 <button
@@ -150,34 +165,52 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
         {/* Current Plan Features Detail */}
         {currentPlan && (
           <div className="bg-gray-900/30 rounded-lg p-4 mb-6 border border-gray-700">
-            <h4 className="text-sm font-semibold text-gray-300 mb-3">Your Benefits</h4>
+            <h4 className="text-sm font-semibold text-gray-300 mb-3">✨ Your Benefits</h4>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div className="text-center">
                 <p className="text-2xl mb-1">💬</p>
                 <p className="text-xs text-gray-400">Chat Messages</p>
-                <p className="text-sm font-semibold text-yellow-300">{getPlanFeatureDisplay(currentTier).chat}</p>
+                <p className="text-sm font-semibold text-yellow-300">
+                  {getPlanFeatureDisplay(currentTier).chat}
+                </p>
               </div>
               <div className="text-center">
                 <p className="text-2xl mb-1">👔</p>
                 <p className="text-xs text-gray-400">Outfit Ideas</p>
-                <p className="text-sm font-semibold text-yellow-300">{getPlanFeatureDisplay(currentTier).outfits}</p>
+                <p className="text-sm font-semibold text-yellow-300">
+                  {getPlanFeatureDisplay(currentTier).outfits}
+                </p>
               </div>
               <div className="text-center">
                 <p className="text-2xl mb-1">🎨</p>
                 <p className="text-xs text-gray-400">Colors</p>
-                <p className="text-sm font-semibold text-yellow-300">{getPlanFeatureDisplay(currentTier).colors}</p>
+                <p className="text-sm font-semibold text-yellow-300">
+                  {getPlanFeatureDisplay(currentTier).colors}
+                </p>
               </div>
               <div className="text-center">
                 <p className="text-2xl mb-1">👜</p>
                 <p className="text-xs text-gray-400">Wardrobe</p>
-                <p className={`text-sm font-semibold ${getPlanFeatureDisplay(currentTier).wardrobe.includes('No') ? 'text-gray-500' : 'text-yellow-300'}`}>
+                <p
+                  className={`text-sm font-semibold ${
+                    getPlanFeatureDisplay(currentTier).wardrobe.includes('No')
+                      ? 'text-gray-500'
+                      : 'text-yellow-300'
+                  }`}
+                >
                   {getPlanFeatureDisplay(currentTier).wardrobe}
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-2xl mb-1">🖼️</p>
                 <p className="text-xs text-gray-400">Image Editor</p>
-                <p className={`text-sm font-semibold ${getPlanFeatureDisplay(currentTier).editor.includes('No') ? 'text-gray-500' : 'text-yellow-300'}`}>
+                <p
+                  className={`text-sm font-semibold ${
+                    getPlanFeatureDisplay(currentTier).editor.includes('No')
+                      ? 'text-gray-500'
+                      : 'text-yellow-300'
+                  }`}
+                >
                   {getPlanFeatureDisplay(currentTier).editor}
                 </p>
               </div>
@@ -185,12 +218,12 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
           </div>
         )}
 
-        {/* Upgrade Options */}
+        {/* Upgrade Options - Show for Free tier */}
         {currentTier === 'free' && (
           <div className="space-y-4 mb-6">
-            <h3 className="text-lg font-semibold text-gray-300">Upgrade Your Plan</h3>
+            <h3 className="text-lg font-semibold text-gray-300">🚀 Upgrade Your Plan</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {SUBSCRIPTION_PLANS.filter(p => p.tier !== 'free').map(plan => (
+              {SUBSCRIPTION_PLANS.filter((p) => p.tier !== 'free').map((plan) => (
                 <button
                   key={plan.tier}
                   onClick={() => handleUpgrade(plan.tier as 'style_plus' | 'style_x')}
@@ -204,7 +237,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
                     </div>
                     {plan.tier === 'style_plus' && (
                       <span className="text-xs bg-yellow-400 text-gray-900 px-2 py-1 rounded font-bold">
-                        Popular
+                        Popular ⭐
                       </span>
                     )}
                   </div>
@@ -219,10 +252,11 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
           </div>
         )}
 
+        {/* Plan Management - Show for paid users */}
         {currentTier !== 'free' && (
           <div className="space-y-4 mb-6">
-            <h3 className="text-lg font-semibold text-gray-300">Plan Management</h3>
-            
+            <h3 className="text-lg font-semibold text-gray-300">⚙️ Plan Management</h3>
+
             {/* Upgrade to StyleX Button for Style+ users */}
             {currentTier === 'style_plus' && onOpenPlanModal && (
               <button
@@ -234,13 +268,14 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
                 Upgrade to StyleX for More Features
               </button>
             )}
-            
+
+            {/* Cancel Subscription Button */}
             <button
               onClick={handleCancel}
               disabled={isLoading}
               className="w-full bg-red-500/20 border-2 border-red-500/50 hover:border-red-500 text-red-400 font-semibold py-3 rounded-lg transition-all disabled:opacity-50 hover:bg-red-500/30"
             >
-              {isLoading ? 'Processing...' : 'Cancel Subscription'}
+              {isLoading ? '⏳ Processing...' : '❌ Cancel Subscription'}
             </button>
             <p className="text-xs text-gray-500">
               Cancel anytime. Your access will continue until the end of your billing period.
@@ -250,61 +285,82 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-900/30 border border-red-500/50 text-red-400 p-4 rounded-lg">
-            {error}
+          <div className="bg-red-900/30 border border-red-500/50 text-red-400 p-4 rounded-lg mb-6 flex items-start gap-3">
+            <span className="text-xl">⚠️</span>
+            <div>
+              <p className="font-semibold">Error</p>
+              <p className="text-sm">{error}</p>
+            </div>
           </div>
         )}
 
         {/* All Plans Comparison */}
         <div className="mt-8 pt-8 border-t border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-300 mb-4">All Plans Comparison</h3>
+          <h3 className="text-lg font-semibold text-gray-300 mb-4">📊 All Plans Comparison</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {SUBSCRIPTION_PLANS.map(plan => {
+            {SUBSCRIPTION_PLANS.map((plan) => {
               const features = getPlanFeatureDisplay(plan.tier as SubscriptionTier);
+              const isCurrentPlan = currentTier === plan.tier;
+
               return (
                 <div
                   key={plan.tier}
-                  className={`p-4 rounded-lg border-2 transition-all ${
-                    currentTier === plan.tier
-                      ? 'border-yellow-400 bg-yellow-400/10 scale-105'
+                  className={`p-4 rounded-lg border-2 transition-all transform ${
+                    isCurrentPlan
+                      ? 'border-yellow-400 bg-yellow-400/10 scale-105 shadow-lg shadow-yellow-400/20'
                       : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
                   }`}
                 >
+                  {/* Plan Header */}
                   <div className="flex items-center justify-between mb-2">
                     <p className="font-bold text-white">{plan.name}</p>
-                    {currentTier === plan.tier && (
+                    {isCurrentPlan && (
                       <span className="text-xs bg-yellow-400 text-gray-900 px-2 py-1 rounded font-bold">
-                        Current
+                        Current ✓
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-400">
-                    {plan.price === 0 ? 'Free' : `₹${plan.price}/mo`}
+
+                  {/* Price */}
+                  <p className="text-sm text-gray-400 mb-3">
+                    {plan.price === 0 ? '🎉 Free Forever' : `₹${plan.price}/month`}
                   </p>
-                  
+
                   {/* Feature Comparison Grid */}
-                  <div className="mt-3 space-y-2 text-xs">
-                    <div className="flex justify-between text-gray-300">
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between text-gray-300 pb-2 border-b border-gray-700">
                       <span>💬 Chat:</span>
                       <span className="text-yellow-300 font-semibold">{features.chat}</span>
                     </div>
-                    <div className="flex justify-between text-gray-300">
+                    <div className="flex justify-between text-gray-300 pb-2 border-b border-gray-700">
                       <span>👔 Outfits:</span>
                       <span className="text-yellow-300 font-semibold">{features.outfits}</span>
                     </div>
-                    <div className="flex justify-between text-gray-300">
+                    <div className="flex justify-between text-gray-300 pb-2 border-b border-gray-700">
                       <span>🎨 Colors:</span>
                       <span className="text-yellow-300 font-semibold">{features.colors}</span>
                     </div>
-                    <div className="flex justify-between text-gray-300">
+                    <div className="flex justify-between text-gray-300 pb-2 border-b border-gray-700">
                       <span>👜 Wardrobe:</span>
-                      <span className={features.wardrobe.includes('No') ? 'text-gray-500' : 'text-yellow-300 font-semibold'}>
+                      <span
+                        className={
+                          features.wardrobe.includes('No')
+                            ? 'text-gray-500'
+                            : 'text-yellow-300 font-semibold'
+                        }
+                      >
                         {features.wardrobe}
                       </span>
                     </div>
                     <div className="flex justify-between text-gray-300">
                       <span>🖼️ Editor:</span>
-                      <span className={features.editor.includes('No') ? 'text-gray-500' : 'text-yellow-300 font-semibold'}>
+                      <span
+                        className={
+                          features.editor.includes('No')
+                            ? 'text-gray-500'
+                            : 'text-yellow-300 font-semibold'
+                        }
+                      >
                         {features.editor}
                       </span>
                     </div>
@@ -317,7 +373,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 
         {/* Account Info */}
         <div className="mt-8 pt-8 border-t border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-300 mb-4">Account Info</h3>
+          <h3 className="text-lg font-semibold text-gray-300 mb-4">👤 Account Information</h3>
           <div className="space-y-3 text-sm bg-gray-900/30 rounded-lg p-4 border border-gray-700">
             <div>
               <p className="text-gray-400">Name</p>
@@ -327,21 +383,41 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
               <p className="text-gray-400">Email</p>
               <p className="text-white font-semibold break-all">{userEmail}</p>
             </div>
-            {subscription?.subscriptionId && (
+
+            {/* ✨ Razorpay Payment ID */}
+            {subscription?.razorpayPaymentId && (
               <div>
-                <p className="text-gray-400">Subscription ID</p>
-                <p className="text-white font-mono text-xs break-all">{subscription.subscriptionId}</p>
+                <p className="text-gray-400">Payment ID</p>
+                <p className="text-white font-mono text-xs break-all bg-gray-800 p-2 rounded">
+                  {subscription.razorpayPaymentId}
+                </p>
               </div>
             )}
+
+            {/* ✨ Razorpay Order ID */}
+            {subscription?.razorpayOrderId && (
+              <div>
+                <p className="text-gray-400">Order ID</p>
+                <p className="text-white font-mono text-xs break-all bg-gray-800 p-2 rounded">
+                  {subscription.razorpayOrderId}
+                </p>
+              </div>
+            )}
+
             <div>
               <p className="text-gray-400">Account Type</p>
               <p className="text-white font-semibold">{userProfile?.gender ?? 'N/A'}</p>
             </div>
+
             {subscription && (
               <div>
                 <p className="text-gray-400">Subscription Status</p>
-                <p className={`font-semibold ${subscription.status === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
-                  {subscription.status === 'active' ? '✓ Active' : 'Inactive'}
+                <p
+                  className={`font-semibold ${
+                    subscription.status === 'active' ? 'text-green-400' : 'text-yellow-400'
+                  }`}
+                >
+                  {subscription.status === 'active' ? '✓ Active' : '⚠️ ' + subscription.status}
                 </p>
               </div>
             )}

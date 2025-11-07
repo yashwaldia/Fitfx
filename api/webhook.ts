@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 
-// Initialize Firebase Admin
+// ✅ Initialize Firebase Admin (SAME AS YOUR CURRENT CODE)
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -14,13 +14,14 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore();
-const WEBHOOK_SECRET = process.env.LEMON_WEBHOOK_SECRET || '';
 
-const VARIANT_TIER_MAP: Record<string, 'style_plus' | 'style_x'> = {
-  [process.env.LEMON_STYLE_PLUS_VARIANT_ID || '']: 'style_plus',
-  [process.env.LEMON_STYLE_X_VARIANT_ID || '']: 'style_x',
-};
+// ✨ CHANGED: Razorpay webhook secret
+const WEBHOOK_SECRET = process.env.REACT_APP_RAZORPAY_WEBHOOK_SECRET || '';
 
+// ✨ REMOVED: Variant tier map (not needed for Razorpay)
+// We'll get tier from payment notes instead
+
+// ✨ CHANGED: Razorpay signature verification
 function verifyWebhookSignature(
   payload: string,
   signature: string,
@@ -33,66 +34,84 @@ function verifyWebhookSignature(
   return hash === signature;
 }
 
-async function handleSubscriptionCreated(data: any): Promise<void> {
-  const { id, attributes } = data;
-  const { variant_id, customer_id } = attributes;
-  const customData = attributes.custom_data || {};
-  const userId = customData.user_id;
+// ✨ NEW: Handle payment captured
+async function handlePaymentCaptured(data: any): Promise<void> {
+  const entity = data.entity || data;
+  const notes = entity.notes || {};
+  const userId = notes.user_id;
+  const tier = notes.tier || 'style_plus';
 
-  if (!userId) return;
-
-  const tier = VARIANT_TIER_MAP[String(variant_id)];
-  if (!tier) return;
+  if (!userId) {
+    console.warn('⚠️ No user_id in payment notes');
+    return;
+  }
 
   try {
     await db.collection('users').doc(userId).update({
       subscription: {
         tier,
         status: 'active',
-        subscriptionId: id,
-        customerId: String(customer_id),
+        razorpayPaymentId: entity.id,
+        razorpayOrderId: entity.order_id || '',
         startDate: new Date().toISOString(),
       },
       hasSeenPlanModal: true,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    console.log(`✅ Subscription created for user ${userId} - Tier: ${tier}`);
+    console.log(`✅ Payment captured for user ${userId} - Tier: ${tier}`);
   } catch (error) {
-    console.error('Error:', error);
+    console.error('❌ Error handling payment captured:', error);
     throw error;
   }
 }
 
-async function handleSubscriptionUpdated(data: any): Promise<void> {
-  const { attributes } = data;
-  const { variant_id, status } = attributes;
-  const customData = attributes.custom_data || {};
-  const userId = customData.user_id;
+// ✨ NEW: Handle payment failed
+async function handlePaymentFailed(data: any): Promise<void> {
+  const entity = data.entity || data;
+  const notes = entity.notes || {};
+  const userId = notes.user_id;
 
   if (!userId) return;
 
-  const tier = VARIANT_TIER_MAP[String(variant_id)];
-  if (!tier) return;
+  console.error(`❌ Payment failed for user ${userId}`);
+  // Optionally: Send email notification
+}
+
+// ✨ NEW: Handle order paid
+async function handleOrderPaid(data: any): Promise<void> {
+  const entity = data.entity || data;
+  const notes = entity.notes || {};
+  const userId = notes.user_id;
+  const tier = notes.tier || 'style_plus';
+
+  if (!userId) return;
 
   try {
     await db.collection('users').doc(userId).update({
-      'subscription.status': status,
-      'subscription.tier': tier,
+      subscription: {
+        tier,
+        status: 'active',
+        razorpayPaymentId: entity.id,
+        razorpayOrderId: entity.id,
+        startDate: new Date().toISOString(),
+      },
+      hasSeenPlanModal: true,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    console.log(`✅ Subscription updated for user ${userId}`);
+    console.log(`✅ Order paid for user ${userId} - Tier: ${tier}`);
   } catch (error) {
-    console.error('Error:', error);
+    console.error('❌ Error handling order paid:', error);
     throw error;
   }
 }
 
-async function handleSubscriptionCancelled(data: any): Promise<void> {
-  const { attributes } = data;
-  const customData = attributes.custom_data || {};
-  const userId = customData.user_id;
+// ✨ NEW: Handle refund
+async function handlePaymentRefunded(data: any): Promise<void> {
+  const entity = data.entity || data;
+  const notes = entity.notes || {};
+  const userId = notes.user_id;
 
   if (!userId) return;
 
@@ -100,19 +119,20 @@ async function handleSubscriptionCancelled(data: any): Promise<void> {
     await db.collection('users').doc(userId).update({
       subscription: {
         tier: 'free',
-        status: 'cancelled',
+        status: 'refunded',
         startDate: new Date().toISOString(),
       },
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    console.log(`✅ Subscription cancelled for user ${userId}`);
+    console.log(`💰 Payment refunded for user ${userId}`);
   } catch (error) {
-    console.error('Error:', error);
+    console.error('❌ Error handling refund:', error);
     throw error;
   }
 }
 
+// ✨ MAIN HANDLER - Updated for Razorpay
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -122,36 +142,49 @@ export default async function handler(
   }
 
   try {
-    const signature = (req.headers['x-signature'] as string) || '';
+    // ✨ CHANGED: Razorpay uses x-razorpay-signature header
+    const signature = (req.headers['x-razorpay-signature'] as string) || '';
     const payload = JSON.stringify(req.body);
 
+    // Verify signature
     if (!verifyWebhookSignature(payload, signature, WEBHOOK_SECRET)) {
-      console.warn('Invalid signature');
+      console.warn('⚠️ Invalid Razorpay signature');
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { meta, data } = req.body;
-    const eventName = meta?.event_name;
+    // ✨ CHANGED: Razorpay event structure
+    const { event, payload: eventPayload } = req.body;
+    
+    console.log(`🔔 Razorpay Webhook: ${event}`);
 
-    console.log(`🔔 Webhook: ${eventName}`);
-
-    switch (eventName) {
-      case 'subscription_created':
-        await handleSubscriptionCreated(data);
+    // ✨ NEW: Handle Razorpay events
+    switch (event) {
+      case 'payment.captured':
+        await handlePaymentCaptured(eventPayload.payment);
         break;
-      case 'subscription_updated':
-        await handleSubscriptionUpdated(data);
+        
+      case 'payment.failed':
+        await handlePaymentFailed(eventPayload.payment);
         break;
-      case 'subscription_cancelled':
-        await handleSubscriptionCancelled(data);
+        
+      case 'order.paid':
+        await handleOrderPaid(eventPayload.order);
         break;
+        
+      case 'payment.refunded':
+        await handlePaymentRefunded(eventPayload.refund);
+        break;
+        
       default:
-        console.log(`⚠️ Unhandled: ${eventName}`);
+        console.log(`⚠️ Unhandled Razorpay event: ${event}`);
     }
 
     return res.status(200).json({ success: true });
   } catch (error) {
-    console.error('Error:', error);
-    return res.status(500).json({ error: 'Error' });
+    console.error('❌ Webhook error:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PlanCard from './PlanCard';
 import { SUBSCRIPTION_PLANS } from '../constants/subscriptionPlans';
+import { redirectToRazorpayLink, loadRazorpayScript } from '../services/razorpayService';
 import type { SubscriptionTier } from '../types';
 
 interface PlanSelectionModalProps {
@@ -8,7 +9,7 @@ interface PlanSelectionModalProps {
   isOpen: boolean;
   isLoading?: boolean;
   onClose?: () => void;
-  currentTier?: SubscriptionTier; // ✅ ADD THIS - Current subscription tier
+  currentTier?: SubscriptionTier; // ✅ Current subscription tier
 }
 
 const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({ 
@@ -16,10 +17,26 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
   isOpen, 
   isLoading = false,
   onClose,
-  currentTier = 'free' // ✅ ADD THIS - Default to free
+  currentTier = 'free' // ✅ Default to free
 }) => {
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // ✅ Load Razorpay Script on mount
+  useEffect(() => {
+    if (isOpen) {
+      loadRazorpayScript()
+        .then((success) => {
+          if (!success) {
+            console.warn('⚠️ Failed to load Razorpay script');
+          }
+        })
+        .catch((err) => {
+          console.error('Error loading Razorpay:', err);
+        });
+    }
+  }, [isOpen]);
 
   // ✅ Debug log to verify currentTier
   useEffect(() => {
@@ -68,6 +85,7 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
     }
   }, [isOpen]);
 
+  // ✨ Handle plan selection with Razorpay
   const handlePlanSelect = async (tier: SubscriptionTier) => {
     // ✅ Prevent selecting current tier
     if (tier === currentTier) {
@@ -75,12 +93,35 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
       return;
     }
 
+    // ✅ Free tier doesn't need payment
+    if (tier === 'free') {
+      setSelectedTier(tier);
+      setIsProcessing(true);
+      try {
+        await onPlanSelect(tier);
+      } catch (error) {
+        console.error('Error selecting free plan:', error);
+        setError('Failed to switch to free plan. Please try again.');
+        setIsProcessing(false);
+        setSelectedTier(null);
+      }
+      return;
+    }
+
     setSelectedTier(tier);
     setIsProcessing(true);
+    setError(null);
+
     try {
-      await onPlanSelect(tier);
-    } catch (error) {
-      console.error('Error selecting plan:', error);
+      // ✨ Redirect to Razorpay Payment Link
+      console.log(`💳 Redirecting to Razorpay for tier: ${tier}`);
+      redirectToRazorpayLink(tier as 'style_plus' | 'style_x');
+      
+      // After successful payment, Razorpay redirects to success page
+      // You need to set success/failure URL in Razorpay Dashboard
+    } catch (err) {
+      console.error('❌ Error initiating checkout:', err);
+      setError(err instanceof Error ? err.message : 'Failed to start checkout. Please try again.');
       setIsProcessing(false);
       setSelectedTier(null);
     }
@@ -134,6 +175,14 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
           {/* Scrollable Content Area */}
           <div className="overflow-y-auto flex-1 custom-scrollbar">
             <div className="p-4 md:p-8">
+              
+              {/* ✨ Error Display */}
+              {error && (
+                <div className="mb-6 p-4 bg-red-900/20 border border-red-700 rounded-lg text-red-300">
+                  ❌ {error}
+                </div>
+              )}
+
               {/* Plans Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                 {SUBSCRIPTION_PLANS.map((plan) => {
@@ -189,7 +238,7 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
                   <div className="bg-gray-800/50 p-4 rounded-lg hover:bg-gray-800/70 transition-colors">
                     <h4 className="font-semibold text-white mb-2">What payment methods do you accept?</h4>
                     <p className="text-sm text-gray-300">
-                      We accept all major credit cards, debit cards, and digital wallets via Lemon Squeezy.
+                      We accept all major credit cards, debit cards, and digital wallets via Razorpay.
                     </p>
                   </div>
                 </div>
@@ -242,6 +291,16 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              {/* ✨ Razorpay Badge */}
+              <div className="mt-8 pt-6 border-t border-gray-700 text-center">
+                <p className="text-sm text-gray-400">
+                  💳 <strong>Secure payment powered by Razorpay</strong>
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Your payment information is encrypted and secure. You can manage or cancel your subscription anytime.
+                </p>
               </div>
             </div>
           </div>

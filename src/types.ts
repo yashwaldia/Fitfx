@@ -1,3 +1,4 @@
+// ✨ Color Palette Item
 export interface ColorPaletteItem {
   colorName: string;
   hexCode: string;
@@ -16,7 +17,7 @@ export type Occasion =
   | 'Business'
   | 'Street Fusion';
 
-// ✨ NEW: Country type to replace Style
+// ✨ NEW: Country type (Global style support)
 export type Country =
   | 'India'
   | 'USA'
@@ -25,11 +26,17 @@ export type Country =
   | 'Africa (Nigeria, Ghana, Kenya)'
   | 'Arab Region';
 
-// ✅ KEPT FOR BACKWARD COMPATIBILITY (Optional - can be removed later)
+// ✅ KEPT FOR BACKWARD COMPATIBILITY
 export type Style = 'American' | 'Indian' | 'Fusion' | 'Other';
 
 export type Gender = 'Male' | 'Female' | 'Unisex' | 'Kids';
-export type AgeGroup = 'Teen (13-17)' | 'Young Adult (18-25)' | 'Adult (26-35)' | 'Middle-Aged (36-45)' | 'Senior (46+)';
+
+export type AgeGroup =
+  | 'Teen (13-17)'
+  | 'Young Adult (18-25)'
+  | 'Adult (26-35)'
+  | 'Middle-Aged (36-45)'
+  | 'Senior (46+)';
 
 export type BodyType =
   | 'Rectangle'
@@ -57,12 +64,15 @@ export type BodyType =
 export type SubscriptionTier = 'free' | 'style_plus' | 'style_x';
 export type SubscriptionStatus = 'active' | 'cancelled' | 'past_due' | 'expired';
 
-// ✅ Subscription Interface
+// ✅ UPDATED: Subscription Interface (Razorpay instead of LemonSqueezy)
 export interface Subscription {
   tier: SubscriptionTier;
   status: SubscriptionStatus;
-  subscriptionId?: string; // Lemon Squeezy subscription ID
-  customerId?: string; // Lemon Squeezy customer ID
+  // ✨ RAZORPAY FIELDS (Replaced LemonSqueezy)
+  razorpayPaymentId?: string; // Payment ID from Razorpay
+  razorpayOrderId?: string; // Order ID from Razorpay
+  razorpaySignature?: string; // Signature for verification
+  // ✨ TIMING
   startDate?: string; // ISO timestamp
   endDate?: string; // ISO timestamp
   cancelAtPeriodEnd?: boolean; // Will cancel at end of billing period
@@ -123,6 +133,7 @@ export interface ChatMessage {
 
 // ✅ MAIN USER PROFILE - WITH ALL REQUIRED PROPERTIES
 export interface UserProfile {
+  id?: string; // ✨ ADD: Firebase user ID
   name: string;
   age: string;
   gender: Gender;
@@ -134,7 +145,7 @@ export interface UserProfile {
   preferredFabrics: string[];
   fashionIcons: string;
   hasSeenPlanModal?: boolean;
-  subscription?: Subscription;
+  subscription?: Subscription; // ✨ Razorpay subscription
 }
 
 export interface OutfitData {
@@ -145,7 +156,7 @@ export interface OutfitData {
   'Shoes & Accessories': string;
 }
 
-// ✅ Plan Configuration
+// ✅ UPDATED: Plan Configuration (Razorpay instead of LemonSqueezy)
 export interface PlanConfig {
   tier: SubscriptionTier;
   name: string;
@@ -155,5 +166,7 @@ export interface PlanConfig {
   features: string[];
   limits: FeatureLimits;
   popular?: boolean;
-  lemonsqueezyVariantId?: string;
+  // ✨ RAZORPAY FIELDS
+  razorpayPaymentLinkId?: string; // Razorpay Payment Link ID
+  razorpayProductId?: string; // Product ID in Razorpay
 }

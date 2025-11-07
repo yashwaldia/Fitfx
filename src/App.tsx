@@ -1,20 +1,29 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { auth } from './services/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
-import { 
-  saveUserProfile, 
-  loadUserProfile, 
-  loadWardrobe, 
-  addWardrobeItem, 
-  updateWardrobeItem, 
+import {
+  saveUserProfile,
+  loadUserProfile,
+  loadWardrobe,
+  addWardrobeItem,
+  updateWardrobeItem,
   deleteWardrobeItem,
   markPlanModalSeen,
-  getUserSubscriptionTier
+  getUserSubscriptionTier,
 } from './services/firestoreService';
 import { getStyleAdvice } from './services/geminiService';
-import { openLemonCheckout, getVariantIdFromTier } from './services/lemonSqueezyService';
-// ✨ UPDATED: Import Country instead of Style
-import type { StyleAdvice, Occasion, Country, Gender, Garment, UserProfile, OutfitData, SubscriptionTier } from './types';
+// ✨ UPDATED: Razorpay import instead of LemonSqueezy
+import { redirectToRazorpayLink, loadRazorpayScript } from './services/razorpayService';
+import type {
+  StyleAdvice,
+  Occasion,
+  Country,
+  Gender,
+  Garment,
+  UserProfile,
+  OutfitData,
+  SubscriptionTier,
+} from './types';
 
 // Components
 import SelfieUploader from './components/SelfieUploader';
@@ -22,7 +31,16 @@ import StyleSelector from './components/StyleSelector';
 import UserDetailsSelector from './components/UserDetailsSelector';
 import AIResultDisplay from './components/AIResultDisplay';
 import Loader from './components/Loader';
-import { LogoIcon, SparklesIcon, WardrobeIcon, EditIcon, CalendarIcon, LogoutIcon, UserCircleIcon, ColorSwatchIcon } from './components/Icons';
+import {
+  LogoIcon,
+  SparklesIcon,
+  WardrobeIcon,
+  EditIcon,
+  CalendarIcon,
+  LogoutIcon,
+  UserCircleIcon,
+  ColorSwatchIcon,
+} from './components/Icons';
 import WardrobeUploader from './components/WardrobeUploader';
 import ImageEditor from './components/ImageEditor';
 import Chatbot from './components/Chatbot';
@@ -38,23 +56,21 @@ import SubscriptionManager from './components/SubscriptionManager';
 import { requestNotificationPermission } from './components/Notifications';
 import logoImage from './images/logo.png';
 
-
 type View = 'stylist' | 'wardrobe' | 'editor' | 'colorMatrix' | 'calendar' | 'settings';
 type AuthStep = 'loading' | 'login' | 'profile' | 'loggedIn';
 
-
+// ✨ DEBUG: Log Razorpay configuration
 if (typeof window !== 'undefined') {
-  console.log('=== LEMON SQUEEZY ENV VARIABLES ===');
-  console.log('REACT_APP_LEMON_STORE_ID:', process.env.REACT_APP_LEMON_STORE_ID);
-  console.log('REACT_APP_LEMON_STYLE_PLUS_VARIANT_ID:', process.env.REACT_APP_LEMON_STYLE_PLUS_VARIANT_ID);
-  console.log('REACT_APP_LEMON_STYLE_X_VARIANT_ID:', process.env.REACT_APP_LEMON_STYLE_X_VARIANT_ID);
-  const allLoaded = 
-    process.env.REACT_APP_LEMON_STORE_ID &&
-    process.env.REACT_APP_LEMON_STYLE_PLUS_VARIANT_ID &&
-    process.env.REACT_APP_LEMON_STYLE_X_VARIANT_ID;
-  console.log(allLoaded ? '✅ YES - Ready to use!' : '❌ NO - Check .env.local');
+  console.log('=== RAZORPAY CONFIGURATION ===');
+  console.log('REACT_APP_RAZORPAY_KEY_ID:', process.env.REACT_APP_RAZORPAY_KEY_ID ? '✅ Configured' : '❌ Missing');
+  console.log('REACT_APP_RAZORPAY_PLUS_LINK:', process.env.REACT_APP_RAZORPAY_PLUS_LINK ? '✅ Configured' : '❌ Missing');
+  console.log('REACT_APP_RAZORPAY_X_LINK:', process.env.REACT_APP_RAZORPAY_X_LINK ? '✅ Configured' : '❌ Missing');
+  const allLoaded =
+    process.env.REACT_APP_RAZORPAY_KEY_ID &&
+    process.env.REACT_APP_RAZORPAY_PLUS_LINK &&
+    process.env.REACT_APP_RAZORPAY_X_LINK;
+  console.log(allLoaded ? '✅ YES - Ready to use Razorpay!' : '❌ NO - Check .env.local');
 }
-
 
 const App: React.FC = () => {
   // Auth state
@@ -73,7 +89,6 @@ const App: React.FC = () => {
   // App state
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [occasion, setOccasion] = useState<Occasion>('Traditional');
-  // ✨ UPDATED: Changed from 'style' to 'country'
   const [country, setCountry] = useState<Country>('India');
   const [age, setAge] = useState<string>('');
   const [gender, setGender] = useState<Gender>('Male');
@@ -85,50 +100,62 @@ const App: React.FC = () => {
   const [view, setView] = useState<View>('stylist');
   const [todaySuggestion, setTodaySuggestion] = useState<OutfitData | null>(null);
 
-
-  // Check authentication state and load user data
+  /**
+   * Check authentication state and load user data
+   */
   useEffect(() => {
+    // ✨ Load Razorpay script on app mount
+    loadRazorpayScript()
+      .then((success) => {
+        if (success) {
+          console.log('✅ Razorpay script loaded successfully');
+        } else {
+          console.warn('⚠️ Failed to load Razorpay script');
+        }
+      })
+      .catch((err) => {
+        console.error('❌ Error loading Razorpay:', err);
+      });
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        console.log('User logged in:', currentUser.uid);
+        console.log('✅ User logged in:', currentUser.uid);
         setUserId(currentUser.uid);
         setUser(currentUser);
-        
+
         try {
           const profile = await loadUserProfile(currentUser.uid);
-          
+
           if (profile) {
             setUserProfile(profile);
-            
+
             const wardrobeData = await loadWardrobe(currentUser.uid);
             setWardrobe(wardrobeData);
-            
+
             if (profile.age) setAge(profile.age);
             if (profile.gender) setGender(profile.gender);
             if (profile.preferredOccasions && profile.preferredOccasions.length > 0) {
               setOccasion(profile.preferredOccasions[0]);
             }
-            // ✨ UPDATED: Set country from profile if available
-            // Note: You may need to extend UserProfile to store country preference
             if (profile.favoriteColors) {
               setSelectedColors(profile.favoriteColors);
             }
-            
+
             if (profile.subscription?.tier) {
               setSubscriptionTier(profile.subscription.tier);
             }
-            
+
             if (!profile.hasSeenPlanModal && profile.subscription?.tier === 'free') {
               setShowPlanModal(true);
             }
-            
+
             setAuthStep('loggedIn');
             generateTodaySuggestion();
           } else {
             setAuthStep('profile');
           }
         } catch (error) {
-          console.error('Error loading user data:', error);
+          console.error('❌ Error loading user data:', error);
           setAuthStep('profile');
         }
       } else {
@@ -139,7 +166,9 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-
+  /**
+   * Load subscription tier on mount
+   */
   useEffect(() => {
     if (userId && authStep === 'loggedIn') {
       const loadSubscription = async () => {
@@ -156,55 +185,59 @@ const App: React.FC = () => {
     }
   }, [userId, authStep]);
 
-
+  /**
+   * Generate today's suggestion
+   */
   const generateTodaySuggestion = () => {
     try {
       const suggestions: OutfitData[] = [
         {
-          "Colour Combination": "Navy & White",
-          "T-Shirt/Shirt": "White Cotton Shirt",
-          "Trousers/Bottom": "Navy Blue Chinos",
-          "Jacket/Layer": "Light Grey Blazer",
-          "Shoes & Accessories": "Brown Leather Shoes"
+          'Colour Combination': 'Navy & White',
+          'T-Shirt/Shirt': 'White Cotton Shirt',
+          'Trousers/Bottom': 'Navy Blue Chinos',
+          'Jacket/Layer': 'Light Grey Blazer',
+          'Shoes & Accessories': 'Brown Leather Shoes',
         },
         {
-          "Colour Combination": "Black & Beige",
-          "T-Shirt/Shirt": "Beige T-Shirt",
-          "Trousers/Bottom": "Black Jeans",
-          "Jacket/Layer": "Black Denim Jacket",
-          "Shoes & Accessories": "White Sneakers"
-        }
+          'Colour Combination': 'Black & Beige',
+          'T-Shirt/Shirt': 'Beige T-Shirt',
+          'Trousers/Bottom': 'Black Jeans',
+          'Jacket/Layer': 'Black Denim Jacket',
+          'Shoes & Accessories': 'White Sneakers',
+        },
       ];
       const dayOfWeek = new Date().getDay();
       const suggestion = suggestions[dayOfWeek % suggestions.length];
       setTodaySuggestion(suggestion);
     } catch (error) {
-      console.error('Failed to generate today\'s suggestion:', error);
+      console.error('❌ Failed to generate today\'s suggestion:', error);
     }
   };
 
-
+  /**
+   * Handle profile save
+   */
   const handleProfileSave = async (profile: UserProfile) => {
     if (!userId) {
-      console.error('No user logged in');
+      console.error('❌ No user logged in');
       return;
     }
 
     try {
       setAuthStep('loading');
-      
+
       profile.subscription = {
         tier: 'free',
         status: 'active',
         startDate: new Date().toISOString(),
       };
       profile.hasSeenPlanModal = false;
-      
+
       await saveUserProfile(userId, profile);
-      
+
       setUserProfile(profile);
       setSubscriptionTier('free');
-      
+
       if (profile.age) setAge(profile.age);
       if (profile.gender) setGender(profile.gender);
       if (profile.preferredOccasions && profile.preferredOccasions.length > 0) {
@@ -213,32 +246,36 @@ const App: React.FC = () => {
       if (profile.favoriteColors) {
         setSelectedColors(profile.favoriteColors);
       }
-      
+
       setAuthStep('loggedIn');
       generateTodaySuggestion();
       setupNotifications();
-      
+
       setShowPlanModal(true);
     } catch (error) {
-      console.error('Error saving profile:', error);
+      console.error('❌ Error saving profile:', error);
       setError('Failed to save profile. Please try again.');
       setAuthStep('profile');
     }
   };
 
-
+  /**
+   * Setup notifications
+   */
   const setupNotifications = async () => {
     try {
       const permission = await requestNotificationPermission();
       if (permission === 'granted') {
-        console.log('Notifications enabled');
+        console.log('✅ Notifications enabled');
       }
     } catch (error) {
-      console.error('Failed to set up notifications:', error);
+      console.error('❌ Failed to set up notifications:', error);
     }
   };
 
-
+  /**
+   * ✨ Handle plan selection with Razorpay
+   */
   const handlePlanSelect = async (tier: SubscriptionTier) => {
     setIsSelectingPlan(true);
     try {
@@ -246,7 +283,7 @@ const App: React.FC = () => {
       if (!user) throw new Error('No user');
 
       console.log('📦 Plan selected:', tier);
-      
+
       if (tier === 'free') {
         console.log('✅ Free tier selected - closing modal');
         await markPlanModalSeen(userId);
@@ -255,31 +292,24 @@ const App: React.FC = () => {
         return;
       }
 
-      const variantId = getVariantIdFromTier(tier);
-      if (!variantId) {
-        throw new Error(`Invalid plan configuration for ${tier}`);
-      }
+      console.log('💳 Opening Razorpay payment for tier:', tier);
 
-      console.log('🍋 Opening Lemon Squeezy checkout:', { tier, variantId });
-      
-      await openLemonCheckout({
-        variantId,
-        email: user.email || 'user@example.com',
-        customData: { user_id: userId },
-      });
+      // ✨ Redirect to Razorpay payment link
+      redirectToRazorpayLink(tier);
 
       await markPlanModalSeen(userId);
       setShowPlanModal(false);
-      
     } catch (err) {
-      console.error('Error selecting plan:', err);
+      console.error('❌ Error selecting plan:', err);
       setError(err instanceof Error ? err.message : 'Failed to select plan');
     } finally {
       setIsSelectingPlan(false);
     }
   };
 
-
+  /**
+   * Handle subscription updated
+   */
   const handleSubscriptionUpdated = async (newTier: SubscriptionTier) => {
     setSubscriptionTier(newTier);
     if (userProfile?.subscription) {
@@ -288,12 +318,16 @@ const App: React.FC = () => {
     }
   };
 
-
+  /**
+   * Handle open plan modal
+   */
   const handleOpenPlanModal = () => {
     setShowPlanModal(true);
   };
 
-
+  /**
+   * Handle logout
+   */
   const handleLogout = async () => {
     try {
       await auth.signOut();
@@ -307,40 +341,43 @@ const App: React.FC = () => {
       setShowLogoutConfirm(false);
       setView('stylist');
       setSubscriptionTier('free');
+      console.log('✅ Logged out successfully');
     } catch (error) {
-      console.error('Error logging out:', error);
+      console.error('❌ Error logging out:', error);
     }
   };
 
-
+  /**
+   * Handle color select
+   */
   const handleColorSelect = (hex: string) => {
-    setSelectedColors(prev => 
-      prev.includes(hex) 
-        ? prev.filter(c => c !== hex)
-        : [...prev, hex]
-    );
+    setSelectedColors((prev) => (prev.includes(hex) ? prev.filter((c) => c !== hex) : [...prev, hex]));
   };
 
-
+  /**
+   * Handle add to wardrobe
+   */
   const handleAddToWardrobe = async (garment: Garment) => {
     if (!userId) {
-      console.error('No user logged in');
+      console.error('❌ No user logged in');
       return;
     }
 
     try {
       await addWardrobeItem(userId, garment);
-      setWardrobe(prev => [...prev, garment]);
+      setWardrobe((prev) => [...prev, garment]);
     } catch (error) {
-      console.error('Error adding wardrobe item:', error);
+      console.error('❌ Error adding wardrobe item:', error);
       setError('Failed to add item to wardrobe. Please try again.');
     }
   };
 
-
+  /**
+   * Handle update wardrobe
+   */
   const handleUpdateWardrobe = async (index: number, updatedGarment: Garment) => {
     if (!userId) {
-      console.error('No user logged in');
+      console.error('❌ No user logged in');
       return;
     }
 
@@ -350,15 +387,17 @@ const App: React.FC = () => {
       updatedWardrobe[index] = updatedGarment;
       setWardrobe(updatedWardrobe);
     } catch (error) {
-      console.error('Error updating wardrobe item:', error);
+      console.error('❌ Error updating wardrobe item:', error);
       setError('Failed to update item. Please try again.');
     }
   };
 
-
+  /**
+   * Handle delete from wardrobe
+   */
   const handleDeleteFromWardrobe = async (index: number) => {
     if (!userId) {
-      console.error('No user logged in');
+      console.error('❌ No user logged in');
       return;
     }
 
@@ -367,13 +406,14 @@ const App: React.FC = () => {
       const updatedWardrobe = wardrobe.filter((_, i) => i !== index);
       setWardrobe(updatedWardrobe);
     } catch (error) {
-      console.error('Error deleting wardrobe item:', error);
+      console.error('❌ Error deleting wardrobe item:', error);
       setError('Failed to delete item. Please try again.');
     }
   };
 
-
-  // ✨ UPDATED: Changed 'style' to 'country'
+  /**
+   * Handle submit for style advice
+   */
   const handleSubmit = useCallback(async () => {
     if (!uploadedImage) {
       setError('Please upload a selfie first');
@@ -392,7 +432,7 @@ const App: React.FC = () => {
       const advice = await getStyleAdvice(
         uploadedImage,
         occasion,
-        country,  // ✨ CHANGED: was 'style'
+        country,
         age,
         gender,
         selectedColors,
@@ -401,30 +441,26 @@ const App: React.FC = () => {
       );
       setStyleAdvice(advice);
     } catch (err) {
-      console.error('Error getting style advice:', err);
+      console.error('❌ Error getting style advice:', err);
       setError('Failed to get style advice. Please try again.');
     } finally {
       setIsLoading(false);
     }
   }, [uploadedImage, occasion, country, age, gender, selectedColors, wardrobe, userProfile]);
 
-
   // ==================== RENDER FUNCTIONS ====================
-  
+
   const renderStylistView = () => (
     <div className="space-y-8">
-      <TodaySuggestion 
-        suggestion={todaySuggestion} 
+      <TodaySuggestion
+        suggestion={todaySuggestion}
         onViewCalendar={() => setView('calendar')}
       />
 
       {!styleAdvice && !isLoading && (
         <div className="space-y-8 animate-fade-in-up">
-          <SelfieUploader 
-            onImageUpload={setUploadedImage}
-            uploadedImage={uploadedImage}
-          />
-          
+          <SelfieUploader onImageUpload={setUploadedImage} uploadedImage={uploadedImage} />
+
           {uploadedImage && (
             <>
               <UserDetailsSelector
@@ -433,18 +469,14 @@ const App: React.FC = () => {
                 setAge={setAge}
                 setGender={setGender}
               />
-              {/* ✨ UPDATED: Changed style/setStyle to country/setCountry */}
               <StyleSelector
                 occasion={occasion}
                 setOccasion={setOccasion}
                 country={country}
                 setCountry={setCountry}
               />
-              <ColorSelector
-                selectedColors={selectedColors}
-                onColorSelect={handleColorSelect}
-              />
-              
+              <ColorSelector selectedColors={selectedColors} onColorSelect={handleColorSelect} />
+
               <div className="text-center">
                 <button
                   onClick={handleSubmit}
@@ -461,13 +493,13 @@ const App: React.FC = () => {
       )}
 
       {isLoading && <Loader />}
-      
+
       {error && !isLoading && (
         <p className="text-center text-red-400 bg-red-900/50 p-4 rounded-lg">{error}</p>
       )}
 
       {styleAdvice && !isLoading && (
-        <AIResultDisplay 
+        <AIResultDisplay
           advice={styleAdvice}
           image={uploadedImage}
           onReset={() => {
@@ -480,10 +512,9 @@ const App: React.FC = () => {
     </div>
   );
 
-
   const renderWardrobeView = () => (
-    <WardrobeUploader 
-      wardrobe={wardrobe} 
+    <WardrobeUploader
+      wardrobe={wardrobe}
       onAddToWardrobe={handleAddToWardrobe}
       onUpdateWardrobe={handleUpdateWardrobe}
       onDeleteFromWardrobe={handleDeleteFromWardrobe}
@@ -492,38 +523,28 @@ const App: React.FC = () => {
     />
   );
 
-
   const renderEditorView = () => (
-    <ImageEditor 
+    <ImageEditor
       wardrobe={wardrobe}
       subscriptionTier={subscriptionTier}
       onUpgradeClick={handleOpenPlanModal}
     />
   );
 
+  const renderColorMatrixView = () => <ColorMatrix userProfile={userProfile} wardrobe={wardrobe} />;
 
-  const renderColorMatrixView = () => (
-    <ColorMatrix userProfile={userProfile} wardrobe={wardrobe} />
-  );
+  const renderCalendarView = () => <CalendarPlan />;
 
-
-  const renderCalendarView = () => (
-    <CalendarPlan />
-  );
-
-
-  const renderSettingsView = () => (
-    userProfile?.subscription && user && (
-      <SubscriptionManager 
+  const renderSettingsView = () =>
+    userProfile?.subscription && user ? (
+      <SubscriptionManager
         userProfile={userProfile}
         userEmail={user.email}
         userId={user.uid}
         onSubscriptionUpdated={handleSubscriptionUpdated}
         onOpenPlanModal={handleOpenPlanModal}
       />
-    )
-  );
-
+    ) : null;
 
   if (authStep === 'loading') {
     return <Loader />;
@@ -531,15 +552,9 @@ const App: React.FC = () => {
 
   if (authStep === 'login') {
     return showSignup ? (
-      <Signup
-        onSignupSuccess={() => setAuthStep('profile')}
-        onSwitchToLogin={() => setShowSignup(false)}
-      />
+      <Signup onSignupSuccess={() => setAuthStep('profile')} onSwitchToLogin={() => setShowSignup(false)} />
     ) : (
-      <Login
-        onLoginSuccess={() => setAuthStep('profile')}
-        onSwitchToSignup={() => setShowSignup(true)}
-      />
+      <Login onLoginSuccess={() => setAuthStep('profile')} onSwitchToSignup={() => setShowSignup(true)} />
     );
   }
 
@@ -549,7 +564,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200">
-      <PlanSelectionModal 
+      <PlanSelectionModal
         isOpen={showPlanModal}
         onPlanSelect={handlePlanSelect}
         isLoading={isSelectingPlan}
@@ -561,18 +576,16 @@ const App: React.FC = () => {
         <div className="max-w-full mx-auto">
           <div className="hidden md:flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-shrink-0">
-              <img 
-                src={logoImage} 
-                alt="FitFx Logo" 
-                className="h-8 w-auto"
-              />
-              <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
-                subscriptionTier === 'free'
-                  ? 'bg-gray-700 text-gray-300'
-                  : subscriptionTier === 'style_plus'
-                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50'
-                  : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'
-              }`}>
+              <img src={logoImage} alt="FitFx Logo" className="h-8 w-auto" />
+              <span
+                className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
+                  subscriptionTier === 'free'
+                    ? 'bg-gray-700 text-gray-300'
+                    : subscriptionTier === 'style_plus'
+                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50'
+                      : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'
+                }`}
+              >
                 {subscriptionTier === 'free' ? '🎁 Free' : subscriptionTier === 'style_plus' ? '⭐ Style+' : '👑 StyleX'}
               </span>
             </div>
@@ -584,7 +597,7 @@ const App: React.FC = () => {
                 { view: 'editor', icon: EditIcon, label: 'Editor' },
                 { view: 'colorMatrix', icon: ColorSwatchIcon, label: 'Color' },
                 { view: 'calendar', icon: CalendarIcon, label: 'Calendar' },
-                { view: 'settings', icon: UserCircleIcon, label: 'Settings' }
+                { view: 'settings', icon: UserCircleIcon, label: 'Settings' },
               ].map(({ view: v, icon: Icon, label }) => (
                 <button
                   key={v}
@@ -608,7 +621,7 @@ const App: React.FC = () => {
                   ⭐ Upgrade
                 </button>
               )}
-              
+
               <button
                 onClick={() => setShowLogoutConfirm(true)}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm whitespace-nowrap font-medium"
@@ -621,18 +634,16 @@ const App: React.FC = () => {
           <div className="md:hidden space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-shrink-0">
-                <img 
-                  src={logoImage} 
-                  alt="FitFx Logo" 
-                  className="h-6 w-auto"
-                />
-                <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
-                  subscriptionTier === 'free'
-                    ? 'bg-gray-700 text-gray-300'
-                    : subscriptionTier === 'style_plus'
-                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50'
-                    : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'
-                }`}>
+                <img src={logoImage} alt="FitFx Logo" className="h-6 w-auto" />
+                <span
+                  className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
+                    subscriptionTier === 'free'
+                      ? 'bg-gray-700 text-gray-300'
+                      : subscriptionTier === 'style_plus'
+                        ? 'bg-blue-500/20 text-blue-300 border border-blue-500/50'
+                        : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'
+                  }`}
+                >
                   {subscriptionTier === 'free' ? '🎁' : subscriptionTier === 'style_plus' ? '⭐' : '👑'}
                 </span>
               </div>
@@ -662,7 +673,7 @@ const App: React.FC = () => {
                 { view: 'editor', icon: EditIcon, label: 'Editor' },
                 { view: 'colorMatrix', icon: ColorSwatchIcon, label: 'Color' },
                 { view: 'calendar', icon: CalendarIcon, label: 'Calendar' },
-                { view: 'settings', icon: UserCircleIcon, label: 'Settings' }
+                { view: 'settings', icon: UserCircleIcon, label: 'Settings' },
               ].map(({ view: v, icon: Icon, label }) => (
                 <button
                   key={v}
@@ -684,7 +695,9 @@ const App: React.FC = () => {
         {error && (
           <div className="mb-6 p-4 bg-red-900/30 border border-red-500/50 text-red-400 rounded-lg flex justify-between items-center">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-red-300 hover:text-red-200">✕</button>
+            <button onClick={() => setError(null)} className="text-red-300 hover:text-red-200">
+              ✕
+            </button>
           </div>
         )}
 
@@ -719,10 +732,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <Chatbot
-        subscriptionTier={subscriptionTier}
-        userId={userId || 'guest-user'}
-      />
+      <Chatbot subscriptionTier={subscriptionTier} userId={userId || 'guest-user'} />
     </div>
   );
 };
