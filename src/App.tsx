@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { auth } from './services/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
@@ -54,6 +55,9 @@ import ColorMatrix from './components/ColorMatrix';
 import PlanSelectionModal from './components/PlanSelectionModal';
 import SubscriptionManager from './components/SubscriptionManager';
 import { requestNotificationPermission } from './components/Notifications';
+import HomePage from './components/HomePage/HomePage';
+import ContactUs from './components/HomePage/ContactUs';
+import PrivacyPolicy from './components/HomePage/PrivacyPolicy';
 import logoImage from './images/logo.png';
 
 type View = 'stylist' | 'wardrobe' | 'editor' | 'colorMatrix' | 'calendar' | 'settings';
@@ -546,23 +550,9 @@ const App: React.FC = () => {
       />
     ) : null;
 
-  if (authStep === 'loading') {
-    return <Loader />;
-  }
+  // ==================== MAIN APP RENDER ====================
 
-  if (authStep === 'login') {
-    return showSignup ? (
-      <Signup onSignupSuccess={() => setAuthStep('profile')} onSwitchToLogin={() => setShowSignup(false)} />
-    ) : (
-      <Login onLoginSuccess={() => setAuthStep('profile')} onSwitchToSignup={() => setShowSignup(true)} />
-    );
-  }
-
-  if (authStep === 'profile') {
-    return <ProfileCreation onProfileSave={handleProfileSave} />;
-  }
-
-  return (
+  const renderAuthenticatedApp = () => (
     <div className="min-h-screen bg-gray-900 text-gray-200">
       <PlanSelectionModal
         isOpen={showPlanModal}
@@ -734,6 +724,74 @@ const App: React.FC = () => {
 
       <Chatbot subscriptionTier={subscriptionTier} userId={userId || 'guest-user'} />
     </div>
+  );
+
+  // ==================== ROUTER SETUP ====================
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* PUBLIC ROUTES */}
+        <Route 
+          path="/" 
+          element={authStep === 'loggedIn' ? <Navigate to="/app" replace /> : <HomePage />} 
+        />
+        <Route path="/contact" element={<ContactUs />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+
+        {/* AUTH ROUTES */}
+        <Route
+          path="/login"
+          element={
+            authStep === 'loading' ? (
+              <Loader />
+            ) : authStep === 'loggedIn' ? (
+              <Navigate to="/app" replace />
+            ) : (
+              <Login
+                onLoginSuccess={() => setAuthStep('profile')}
+                onSwitchToSignup={() => setShowSignup(true)}
+              />
+            )
+          }
+        />
+
+        <Route
+          path="/signup"
+          element={
+            authStep === 'loading' ? (
+              <Loader />
+            ) : authStep === 'loggedIn' ? (
+              <Navigate to="/app" replace />
+            ) : (
+              <Signup
+                onSignupSuccess={() => setAuthStep('profile')}
+                onSwitchToLogin={() => setShowSignup(false)}
+              />
+            )
+          }
+        />
+
+        {/* PROTECTED APP ROUTE */}
+        <Route
+          path="/app"
+          element={
+            authStep === 'loading' ? (
+              <Loader />
+            ) : authStep === 'login' ? (
+              <Navigate to="/login" replace />
+            ) : authStep === 'profile' ? (
+              <ProfileCreation onProfileSave={handleProfileSave} />
+            ) : (
+              renderAuthenticatedApp()
+            )
+          }
+        />
+
+        {/* 404 FALLBACK */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 };
 
