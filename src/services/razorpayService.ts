@@ -1,5 +1,3 @@
-
-
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import type { Subscription } from '../types';
@@ -10,13 +8,19 @@ declare global {
     Razorpay: any;
   }
 }
+
 // ✨ Razorpay Configuration
 const RAZORPAY_KEY_ID = process.env.REACT_APP_RAZORPAY_KEY_ID;
 
-// ✨ Razorpay Payment Link URLs (Create these in Razorpay Dashboard)
-const RAZORPAY_PAYMENT_LINKS = {
-  style_plus: process.env.REACT_APP_RAZORPAY_PLUS_LINK || '',
-  style_x: process.env.REACT_APP_RAZORPAY_X_LINK || '',
+// ✅ FIXED: Determine API endpoint based on environment
+const getApiEndpoint = () => {
+  // In production (Vercel), use relative path
+  if (window.location.hostname !== 'localhost') {
+    return '/api/createPaymentLink';
+  }
+  
+  // In development, check if running local serverless
+  return '/api/createPaymentLink';
 };
 
 /**
@@ -46,21 +50,74 @@ export const loadRazorpayScript = (): Promise<boolean> => {
 };
 
 /**
- * ✨ Redirect to Razorpay Payment Link
+ * ✅ UPDATED: Create dynamic payment link and redirect
+ * This solves the "payment already completed" issue
  */
-export const redirectToRazorpayLink = (
-  tier: 'style_plus' | 'style_x'
-): void => {
-  const paymentLink = RAZORPAY_PAYMENT_LINKS[tier];
+export const redirectToRazorpayLink = async (
+  tier: 'style_plus' | 'style_x',
+  userId: string,
+  userEmail: string,
+  userName: string
+): Promise<void> => {
+  try {
+    console.log(`💳 Requesting NEW payment link for tier: ${tier}`);
+    console.log(`👤 User: ${userId} (${userEmail})`);
 
-  if (!paymentLink) {
-    console.error(`❌ Razorpay payment link not configured for tier: ${tier}`);
-    throw new Error(`Razorpay payment link not configured for tier: ${tier}`);
+    const apiEndpoint = getApiEndpoint();
+    console.log(`📡 API Endpoint: ${apiEndpoint}`);
+
+    // ✅ Call serverless function to create FRESH payment link
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
+        userEmail,
+        userName,
+        tier,
+      }),
+    });
+
+    // ✅ Better error handling
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ API Error Response:', errorText);
+      
+      // Try to parse as JSON, fallback to text
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { error: errorText };
+      }
+      
+      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const freshPaymentLink = data.paymentUrl;
+
+    if (!freshPaymentLink) {
+      throw new Error('No payment URL received from API');
+    }
+
+    console.log(`✅ Fresh payment link received: ${freshPaymentLink}`);
+    console.log(`🔗 Payment Link ID: ${data.paymentLinkId}`);
+
+    // Redirect to the freshly created payment link
+    window.location.href = freshPaymentLink;
+  } catch (error) {
+    console.error('❌ Error creating payment link:', error);
+    
+    // More helpful error messages
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      throw new Error('Cannot connect to payment server. Please check your internet connection.');
+    }
+    
+    throw error;
   }
-
-  console.log(`💳 Redirecting to Razorpay for tier: ${tier}`);
-  // Redirect to Razorpay payment link
-  window.location.href = paymentLink;
 };
 
 /**
@@ -113,8 +170,8 @@ export const updateSubscriptionAfterPayment = async (
     const subscription: Subscription = {
       tier,
       status: 'active',
-      razorpayPaymentId: razorpayPaymentId, // ✨ FIXED
-      razorpayOrderId: razorpayOrderId || razorpayPaymentId, // ✨ FIXED
+      razorpayPaymentId: razorpayPaymentId,
+      razorpayOrderId: razorpayOrderId || razorpayPaymentId,
       startDate: new Date().toISOString(),
     };
 
@@ -138,7 +195,6 @@ export const cancelSubscription = async (userId: string): Promise<void> => {
       'subscription.status': 'cancelled',
       'subscription.cancelAtPeriodEnd': true,
     });
-
     console.log(`✅ Subscription cancelled for user ${userId}`);
   } catch (error) {
     console.error('Error cancelling subscription:', error);
@@ -157,7 +213,6 @@ export const verifyRazorpaySignature = (paymentId: string): boolean => {
   }
 
   const isValidPaymentId = paymentId.startsWith('pay_');
-
   if (!isValidPaymentId) {
     console.error(`❌ Invalid payment ID format: ${paymentId}`);
     return false;
@@ -168,40 +223,16 @@ export const verifyRazorpaySignature = (paymentId: string): boolean => {
 };
 
 /**
- * ✨ Get Razorpay payment link for tier
- */
-export const getPaymentLink = (tier: 'style_plus' | 'style_x'): string => {
-  const link = RAZORPAY_PAYMENT_LINKS[tier];
-
-  if (!link) {
-    console.warn(`⚠️ No payment link found for tier: ${tier}`);
-    return '';
-  }
-
-  return link;
-};
-
-/**
  * ✨ Check if Razorpay is configured
  */
 export const isRazorpayConfigured = (): boolean => {
   const hasKeyId = !!RAZORPAY_KEY_ID;
-  const hasPlusLink = !!RAZORPAY_PAYMENT_LINKS.style_plus;
-  const hasXLink = !!RAZORPAY_PAYMENT_LINKS.style_x;
 
   if (!hasKeyId) {
     console.warn('⚠️ REACT_APP_RAZORPAY_KEY_ID not configured');
   }
 
-  if (!hasPlusLink) {
-    console.warn('⚠️ REACT_APP_RAZORPAY_PLUS_LINK not configured');
-  }
-
-  if (!hasXLink) {
-    console.warn('⚠️ REACT_APP_RAZORPAY_X_LINK not configured');
-  }
-
-  return hasKeyId && hasPlusLink && hasXLink;
+  return hasKeyId;
 };
 
 /**
@@ -210,12 +241,6 @@ export const isRazorpayConfigured = (): boolean => {
 export const debugRazorpayConfig = (): void => {
   console.log('🔍 Razorpay Configuration:');
   console.log('  Key ID:', RAZORPAY_KEY_ID ? '✅ Configured' : '❌ Not configured');
-  console.log(
-    '  Plus Link:',
-    RAZORPAY_PAYMENT_LINKS.style_plus ? '✅ Configured' : '❌ Not configured'
-  );
-  console.log(
-    '  X Link:',
-    RAZORPAY_PAYMENT_LINKS.style_x ? '✅ Configured' : '❌ Not configured'
-  );
+  console.log('  API Endpoint:', getApiEndpoint());
+  console.log('  Environment:', window.location.hostname === 'localhost' ? 'Development' : 'Production');
 };

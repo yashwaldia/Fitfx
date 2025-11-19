@@ -33,6 +33,15 @@ const SUBSCRIPTION_LIMITS = {
 };
 
 /**
+ * ✨ NEW: Calculate end date (30 days from start)
+ */
+function calculateEndDate(startDate: string): string {
+  const start = new Date(startDate);
+  const end = new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days in milliseconds
+  return end.toISOString();
+}
+
+/**
  * Initialize subscription for new user (Free tier)
  */
 export async function initializeSubscription(uid: string): Promise<Subscription> {
@@ -73,7 +82,8 @@ export async function getSubscription(uid: string): Promise<Subscription | null>
 }
 
 /**
- * ✨ Update subscription tier after Razorpay payment
+ * ✨ UPDATED: Update subscription tier after Razorpay payment
+ * Now automatically calculates endDate = startDate + 30 days
  */
 export async function updateSubscriptionTier(
   uid: string,
@@ -84,13 +94,18 @@ export async function updateSubscriptionTier(
     endDate?: string;
   }
 ): Promise<Subscription> {
+  const startDate = new Date().toISOString();
+  
+  // ✨ CRITICAL: Calculate endDate automatically (30 days from now)
+  const endDate = razorpayData?.endDate || calculateEndDate(startDate);
+
   const subscription: Subscription = {
     tier,
     status: 'active',
-    razorpayPaymentId: razorpayData?.razorpayPaymentId, // ✨ RAZORPAY
-    razorpayOrderId: razorpayData?.razorpayOrderId, // ✨ RAZORPAY
-    startDate: new Date().toISOString(),
-    endDate: razorpayData?.endDate,
+    razorpayPaymentId: razorpayData?.razorpayPaymentId,
+    razorpayOrderId: razorpayData?.razorpayOrderId,
+    startDate: startDate,
+    endDate: endDate, // ✨ Always set endDate for paid subscriptions
   };
 
   try {
@@ -100,6 +115,8 @@ export async function updateSubscriptionTier(
     });
 
     console.log(`✅ Subscription updated to ${tier} for user ${uid}`);
+    console.log(`📅 Start: ${startDate}`);
+    console.log(`📅 End: ${endDate}`);
     return subscription;
   } catch (error) {
     console.error('❌ Error updating subscription:', error);
@@ -162,7 +179,8 @@ export async function updateSubscriptionStatus(
 }
 
 /**
- * ✨ Handle Razorpay Payment Webhook - Payment Successful
+ * ✨ UPDATED: Handle Razorpay Payment Webhook - Payment Successful
+ * Now automatically calculates endDate
  */
 export async function handleRazorpayPaymentSuccess(
   uid: string,
@@ -174,12 +192,17 @@ export async function handleRazorpayPaymentSuccess(
   }
 ): Promise<void> {
   try {
+    const startDate = new Date().toISOString();
+    const endDate = paymentData.endDate || calculateEndDate(startDate);
+
     await updateSubscriptionTier(uid, paymentData.tier, {
       razorpayPaymentId: paymentData.razorpayPaymentId,
       razorpayOrderId: paymentData.razorpayOrderId,
-      endDate: paymentData.endDate,
+      endDate: endDate,
     });
+    
     console.log(`✅ Razorpay payment processed for user ${uid}`);
+    console.log(`📅 Subscription valid until: ${endDate}`);
   } catch (error) {
     console.error('❌ Error handling Razorpay payment webhook:', error);
     throw error;
@@ -205,7 +228,7 @@ export async function handleRazorpaySubscriptionUpdated(
         ...currentSubscription,
         tier: subscriptionData.tier,
         status: subscriptionData.status,
-        razorpayOrderId: subscriptionData.razorpayOrderId, // ✨ RAZORPAY
+        razorpayOrderId: subscriptionData.razorpayOrderId,
       };
 
       await updateDoc(doc(db, 'users', uid), {
@@ -260,18 +283,14 @@ export async function getUserSubscriptionTier(uid: string): Promise<Subscription
 }
 
 /**
- * ✨ FIXED: Get feature limits based on subscription tier
- * Now uses global SUBSCRIPTION_LIMITS defined at top
+ * ✨ Get feature limits based on subscription tier
  */
 export async function getUserSubscriptionLimits(uid: string) {
   try {
     const tier = await getUserSubscriptionTier(uid);
-
-    // ✨ FIXED: Return from global SUBSCRIPTION_LIMITS
     return SUBSCRIPTION_LIMITS[tier] || SUBSCRIPTION_LIMITS.free;
   } catch (error) {
     console.error('❌ Error getting subscription limits:', error);
-    // ✨ FIXED: Return default limits on error
     return SUBSCRIPTION_LIMITS.free;
   }
 }
@@ -337,31 +356,45 @@ export async function verifyRazorpaySignature(
 }
 
 /**
- * Check subscription validity
+ * ✨ UPDATED: Check subscription validity (works with Subscription object directly)
+ * This version accepts a Subscription object instead of uid
  */
-export async function isSubscriptionValid(uid: string): Promise<boolean> {
+export function isSubscriptionValid(subscription: Subscription | null): boolean {
+  if (!subscription) {
+    return false;
+  }
+
+  // Free tier is always "valid" (no expiration)
+  if (subscription.tier === 'free') {
+    return true;
+  }
+
+  // Check if subscription is active
+  if (subscription.status !== 'active') {
+    return false;
+  }
+
+  // Check if subscription has expired
+  if (subscription.endDate) {
+    const endDate = new Date(subscription.endDate);
+    const now = new Date();
+    
+    if (endDate < now) {
+      console.warn(`⚠️ Subscription expired on ${endDate.toISOString()}`);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * ✨ NEW: Check subscription validity by user ID
+ */
+export async function isSubscriptionValidForUser(uid: string): Promise<boolean> {
   try {
     const subscription = await getSubscription(uid);
-
-    if (!subscription) {
-      return false;
-    }
-
-    // Check if subscription is active
-    if (subscription.status !== 'active') {
-      return false;
-    }
-
-    // Check if subscription has expired
-    if (subscription.endDate) {
-      const endDate = new Date(subscription.endDate);
-      if (endDate < new Date()) {
-        console.warn(`⚠️ Subscription expired for user ${uid}`);
-        return false;
-      }
-    }
-
-    return true;
+    return isSubscriptionValid(subscription);
   } catch (error) {
     console.error('❌ Error checking subscription validity:', error);
     return false;
@@ -369,7 +402,38 @@ export async function isSubscriptionValid(uid: string): Promise<boolean> {
 }
 
 /**
- * Get days remaining in subscription
+ * ✨ NEW: Expire subscription and downgrade to free
+ */
+export async function expireSubscription(uid: string): Promise<void> {
+  try {
+    const subscription = await getSubscription(uid);
+    
+    if (!subscription) {
+      console.warn('⚠️ No subscription found for user:', uid);
+      return;
+    }
+
+    // Update to free tier with expired status
+    await updateDoc(doc(db, 'users', uid), {
+      subscription: {
+        tier: 'free',
+        status: 'expired',
+        startDate: subscription.startDate,
+        endDate: subscription.endDate,
+        razorpayPaymentId: subscription.razorpayPaymentId,
+        razorpayOrderId: subscription.razorpayOrderId,
+      },
+    });
+
+    console.log(`✅ Subscription expired and downgraded to free for user ${uid}`);
+  } catch (error) {
+    console.error('❌ Error expiring subscription:', error);
+    throw error;
+  }
+}
+
+/**
+ * ✨ UPDATED: Get days remaining in subscription
  */
 export async function getDaysRemaining(uid: string): Promise<number | null> {
   try {
@@ -389,6 +453,36 @@ export async function getDaysRemaining(uid: string): Promise<number | null> {
     console.error('❌ Error getting days remaining:', error);
     return null;
   }
+}
+
+/**
+ * ✨ NEW: Get days remaining from Subscription object directly
+ */
+export function getDaysRemainingFromSubscription(subscription: Subscription | null): number | null {
+  if (!subscription || !subscription.endDate) {
+    return null;
+  }
+
+  const endDate = new Date(subscription.endDate);
+  const today = new Date();
+  const diffTime = endDate.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  return diffDays > 0 ? diffDays : 0;
+}
+
+/**
+ * ✨ NEW: Batch check and expire all expired subscriptions
+ * This can be called by a Cloud Function or scheduled task
+ */
+export async function checkAndExpireAllSubscriptions(): Promise<void> {
+  console.log('🔄 Checking all subscriptions for expiration...');
+  
+  // Note: In production, this should be a Cloud Function that queries
+  // all users with active paid subscriptions and checks expiration
+  
+  console.warn('⚠️ This function should be implemented as a Cloud Function');
+  console.warn('⚠️ It needs to query all users with active subscriptions');
 }
 
 /**

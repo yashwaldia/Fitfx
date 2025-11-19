@@ -1,7 +1,5 @@
 import React from 'react';
 import type { PlanConfig } from '../types';
-import type { SubscriptionTier } from '../types';
-
 
 interface PlanCardProps {
   plan: PlanConfig;
@@ -21,7 +19,6 @@ interface PlanFeatures {
   fabricMixer: string;
 }
 
-
 const PlanCard: React.FC<PlanCardProps> = ({
   plan,
   isSelected,
@@ -34,15 +31,16 @@ const PlanCard: React.FC<PlanCardProps> = ({
 
   // Determine button text based on current plan
   const getButtonText = () => {
-    if (isCurrent) return '✅ Current Plan';
-    if (plan.tier === 'free') return 'Continue with Free';
+    if (isCurrent) return '✅ Plan Active'; // ✨ UPDATED: Clearer text for active plan
+    if (plan.tier === 'free') return 'Downgrade to Free';
     return `Choose ${plan.name}`;
   };
 
   // Determine button style based on current plan
   const getButtonStyle = () => {
     if (isCurrent) {
-      return 'bg-green-600 hover:bg-green-600 text-white cursor-not-allowed';
+      // ✨ UPDATED: Visual cue that button is disabled
+      return 'bg-green-600 text-white cursor-not-allowed opacity-80 hover:bg-green-600';
     }
     if (plan.tier === 'free') {
       return 'bg-gray-700 hover:bg-gray-600 text-white border border-gray-600';
@@ -155,8 +153,15 @@ const PlanCard: React.FC<PlanCardProps> = ({
 
         {/* CTA Button */}
         <button
-          onClick={onSelect}
-          disabled={isLoading || isCurrent}
+          onClick={(e) => {
+            // ✨ FIX: Prevent click if already active
+            if (isCurrent) {
+              e.preventDefault();
+              return;
+            }
+            onSelect();
+          }}
+          disabled={isLoading || isCurrent} // ✨ FIX: HTML disabled attribute
           className={`
             w-full py-3 px-4 rounded-lg font-bold transition-all duration-300 flex items-center justify-center gap-2
             disabled:opacity-70 disabled:cursor-not-allowed

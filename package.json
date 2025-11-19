@@ -17,6 +17,7 @@
     "ajv": "^8.17.1",
     "ajv-keywords": "^5.1.0",
     "firebase": "^12.4.0",
+    "razorpay": "^2.9.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",

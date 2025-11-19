@@ -19,6 +19,12 @@ export interface RazorpayWebhookPayload {
     short_url?: string;
     user_id?: string;
     email?: string;
+    notes?: {
+      userId?: string;      // ← camelCase support
+      user_id?: string;     // ← snake_case support
+      tier?: string;
+      [key: string]: any;
+    };
     [key: string]: any;
   };
 }
@@ -32,18 +38,36 @@ export interface RazorpayCustomData {
 }
 
 /**
+ * ✨ NEW: Calculate end date (30 days from now)
+ */
+function calculateEndDate(): string {
+  const now = new Date();
+  const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+  return endDate.toISOString();
+}
+
+/**
  * ✨ Extract custom data from Razorpay notes
+ * Supports both userId (camelCase) and user_id (snake_case)
  */
 export function extractCustomData(entity: any): RazorpayCustomData {
   const notes = entity.notes || {};
+  
+  // Support both camelCase and snake_case
+  const userId = notes.userId || notes.user_id || entity.user_id;
+  const tier = notes.tier || entity.tier;
+
+  console.log('📝 Extracted data from notes:', { userId, tier, rawNotes: notes });
+
   return {
-    user_id: notes.user_id || entity.user_id,
-    tier: notes.tier || entity.tier,
+    user_id: userId,
+    tier,
   };
 }
 
 /**
- * ✨ Handle payment.captured webhook
+ * ✨ UPDATED: Handle payment.captured webhook
+ * Now automatically sets endDate = startDate + 30 days
  */
 export async function handlePaymentCaptured(payload: RazorpayWebhookPayload): Promise<void> {
   try {
@@ -52,22 +76,31 @@ export async function handlePaymentCaptured(payload: RazorpayWebhookPayload): Pr
 
     if (!userId) {
       console.error('❌ No user_id in payment data:', payload);
-      return;
+      throw new Error('No userId found in payment data');
     }
 
     const tier = customData.tier || 'style_plus';
 
+    // ✨ CRITICAL: Calculate endDate (30 days from now)
+    const startDate = new Date().toISOString();
+    const endDate = calculateEndDate();
+
     console.log(`💳 Payment captured for user ${userId}`);
     console.log(`   Payment ID: ${payload.entity.id}`);
+    console.log(`   Tier: ${tier}`);
     console.log(`   Amount: ${payload.entity.amount / 100} ${payload.entity.currency}`);
+    console.log(`📅 Start Date: ${startDate}`);
+    console.log(`📅 End Date: ${endDate} (30 days from now)`);
 
-    // Update subscription in Firestore
+    // Update subscription in Firestore with endDate
     await updateSubscriptionTier(userId, tier as SubscriptionTier, {
       razorpayPaymentId: payload.entity.id,
       razorpayOrderId: payload.entity.receipt,
+      endDate: endDate, // ✨ ADDED: Set 30-day expiration
     });
 
     console.log(`✅ Subscription updated to ${tier} for user ${userId}`);
+    console.log(`✅ Subscription will expire on: ${endDate}`);
   } catch (error) {
     console.error('❌ Error handling payment.captured:', error);
     throw error;
@@ -125,7 +158,8 @@ export async function handlePaymentAuthorized(payload: RazorpayWebhookPayload): 
 }
 
 /**
- * ✨ Handle order.paid webhook (alternative)
+ * ✨ UPDATED: Handle order.paid webhook (alternative)
+ * Now automatically sets endDate = startDate + 30 days
  */
 export async function handleOrderPaid(payload: RazorpayWebhookPayload): Promise<void> {
   try {
@@ -134,21 +168,30 @@ export async function handleOrderPaid(payload: RazorpayWebhookPayload): Promise<
 
     if (!userId) {
       console.error('❌ No user_id in order data:', payload);
-      return;
+      throw new Error('No userId found in order data');
     }
 
     const tier = customData.tier || 'style_plus';
 
+    // ✨ CRITICAL: Calculate endDate (30 days from now)
+    const startDate = new Date().toISOString();
+    const endDate = calculateEndDate();
+
     console.log(`✅ Order paid for user ${userId}`);
     console.log(`   Order ID: ${payload.entity.id}`);
+    console.log(`   Tier: ${tier}`);
     console.log(`   Amount: ${payload.entity.amount / 100} ${payload.entity.currency}`);
+    console.log(`📅 Start Date: ${startDate}`);
+    console.log(`📅 End Date: ${endDate} (30 days from now)`);
 
-    // Update subscription in Firestore
+    // Update subscription in Firestore with endDate
     await updateSubscriptionTier(userId, tier as SubscriptionTier, {
       razorpayOrderId: payload.entity.id,
+      endDate: endDate, // ✨ ADDED: Set 30-day expiration
     });
 
     console.log(`✅ Subscription updated to ${tier} for user ${userId}`);
+    console.log(`✅ Subscription will expire on: ${endDate}`);
   } catch (error) {
     console.error('❌ Error handling order.paid:', error);
     throw error;
@@ -172,6 +215,9 @@ export async function handlePaymentRefunded(payload: RazorpayWebhookPayload): Pr
     console.warn(`   Payment ID: ${payload.entity.id}`);
     console.warn(`   Amount: ${payload.entity.amount / 100} ${payload.entity.currency}`);
 
+    // TODO: Downgrade user to free tier or handle refund logic
+    // await updateSubscriptionTier(userId, 'free');
+
     // Log refund for audit purposes
     // await logRefund({ userId, paymentId: payload.entity.id, amount: payload.entity.amount });
   } catch (error) {
@@ -188,6 +234,7 @@ export async function handleRazorpayWebhook(
   payload: RazorpayWebhookPayload
 ): Promise<void> {
   console.log(`🔔 Razorpay webhook received: ${eventName}`);
+  console.log(`📦 Full payload:`, JSON.stringify(payload, null, 2));
 
   try {
     switch (eventName) {
@@ -230,7 +277,7 @@ export function verifyRazorpaySignature(
   webhookSecret: string
 ): boolean {
   try {
-    // ✨ Note: In Node.js, use crypto module
+    // ✨ Note: In Node.js backend, use crypto module
     // import { createHmac } from 'crypto';
     // const expectedSignature = createHmac('sha256', webhookSecret)
     //   .update(webhookBody)

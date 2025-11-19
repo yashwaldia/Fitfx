@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PlanCard from './PlanCard';
 import { SUBSCRIPTION_PLANS } from '../constants/subscriptionPlans';
-import { redirectToRazorpayLink, loadRazorpayScript } from '../services/razorpayService';
+import { loadRazorpayScript } from '../services/razorpayService';
 import type { SubscriptionTier } from '../types';
 
 interface PlanSelectionModalProps {
@@ -9,7 +9,7 @@ interface PlanSelectionModalProps {
   isOpen: boolean;
   isLoading?: boolean;
   onClose?: () => void;
-  currentTier?: SubscriptionTier; // ✅ Current subscription tier
+  currentTier?: SubscriptionTier;
 }
 
 const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({ 
@@ -17,13 +17,12 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
   isOpen, 
   isLoading = false,
   onClose,
-  currentTier = 'free' // ✅ Default to free
+  currentTier = 'free'
 }) => {
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ Load Razorpay Script on mount
   useEffect(() => {
     if (isOpen) {
       loadRazorpayScript()
@@ -38,7 +37,6 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
     }
   }, [isOpen]);
 
-  // ✅ Debug log to verify currentTier
   useEffect(() => {
     if (isOpen) {
       console.log('🎬 PlanSelectionModal - currentTier:', currentTier);
@@ -85,26 +83,10 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
     }
   }, [isOpen]);
 
-  // ✨ Handle plan selection with Razorpay
+  // ✨ Handle plan selection - Let App.tsx handle Razorpay
   const handlePlanSelect = async (tier: SubscriptionTier) => {
-    // ✅ Prevent selecting current tier
     if (tier === currentTier) {
       console.log('⚠️ Already on this plan:', tier);
-      return;
-    }
-
-    // ✅ Free tier doesn't need payment
-    if (tier === 'free') {
-      setSelectedTier(tier);
-      setIsProcessing(true);
-      try {
-        await onPlanSelect(tier);
-      } catch (error) {
-        console.error('Error selecting free plan:', error);
-        setError('Failed to switch to free plan. Please try again.');
-        setIsProcessing(false);
-        setSelectedTier(null);
-      }
       return;
     }
 
@@ -113,12 +95,11 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
     setError(null);
 
     try {
-      // ✨ Redirect to Razorpay Payment Link
-      console.log(`💳 Redirecting to Razorpay for tier: ${tier}`);
-      redirectToRazorpayLink(tier as 'style_plus' | 'style_x');
+      // ✨ Call onPlanSelect - App.tsx will handle Razorpay redirect
+      console.log(`💳 Selecting plan: ${tier}`);
+      await onPlanSelect(tier);
       
-      // After successful payment, Razorpay redirects to success page
-      // You need to set success/failure URL in Razorpay Dashboard
+      // Success - App.tsx handles the redirect
     } catch (err) {
       console.error('❌ Error initiating checkout:', err);
       setError(err instanceof Error ? err.message : 'Failed to start checkout. Please try again.');
@@ -131,22 +112,18 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
 
   return (
     <>
-      {/* Backdrop with blur */}
       <div 
         className="fixed inset-0 bg-black/80 backdrop-blur-md z-[60]"
         onClick={onClose}
       ></div>
 
-      {/* ✅ MAIN MODAL with Close Button - FIXED POSITIONING */}
       <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 overflow-hidden">
         <div 
           className="bg-gray-900 border-2 border-gray-700 rounded-3xl shadow-2xl max-w-6xl w-full max-h-[85vh] overflow-hidden flex flex-col animate-fade-in-up"
           onClick={(e) => e.stopPropagation()}
         >
           
-          {/* ✅ HEADER with Close Button - VISIBLE NOW */}
           <div className="bg-gradient-to-r from-gray-800 to-gray-900 p-6 md:p-8 border-b border-gray-700 flex-shrink-0 relative">
-            {/* ✅ CLOSE BUTTON (X) - NOW PROPERLY POSITIONED */}
             {onClose && (
               <button
                 onClick={onClose}
@@ -172,21 +149,18 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
             </p>
           </div>
 
-          {/* Scrollable Content Area */}
           <div className="overflow-y-auto flex-1 custom-scrollbar">
             <div className="p-4 md:p-8">
               
-              {/* ✨ Error Display */}
               {error && (
                 <div className="mb-6 p-4 bg-red-900/20 border border-red-700 rounded-lg text-red-300">
                   ❌ {error}
                 </div>
               )}
 
-              {/* Plans Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                 {SUBSCRIPTION_PLANS.map((plan) => {
-                  const isCurrentPlan = plan.tier === currentTier; // ✅ Check if this is current plan
+                  const isCurrentPlan = plan.tier === currentTier;
                   
                   return (
                     <PlanCard
@@ -195,13 +169,12 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
                       isSelected={selectedTier === plan.tier}
                       onSelect={() => handlePlanSelect(plan.tier as SubscriptionTier)}
                       isLoading={isProcessing && selectedTier === plan.tier}
-                      isCurrent={isCurrentPlan} // ✅ PASS THIS to PlanCard
+                      isCurrent={isCurrentPlan}
                     />
                   );
                 })}
               </div>
 
-              {/* Info Text */}
               <div className="mt-6 md:mt-8 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
                 <p className="text-sm text-blue-300">
                   💡 <strong>New User?</strong> Start with Free tier - no credit card required. 
@@ -209,7 +182,6 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
                 </p>
               </div>
 
-              {/* FAQ Section */}
               <div className="mt-6 md:mt-8 space-y-4">
                 <h3 className="text-lg font-semibold text-yellow-400">Frequently Asked Questions</h3>
                 
@@ -244,7 +216,6 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
                 </div>
               </div>
 
-              {/* Comparison Table */}
               <div className="mt-6 md:mt-8 pb-4">
                 <h3 className="text-lg font-semibold text-yellow-400 mb-4">Feature Comparison</h3>
                 <div className="overflow-x-auto rounded-lg border border-gray-700">
@@ -293,7 +264,6 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
                 </div>
               </div>
 
-              {/* ✨ Razorpay Badge */}
               <div className="mt-8 pt-6 border-t border-gray-700 text-center">
                 <p className="text-sm text-gray-400">
                   💳 <strong>Secure payment powered by Razorpay</strong>

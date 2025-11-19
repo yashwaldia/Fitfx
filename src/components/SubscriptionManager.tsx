@@ -66,10 +66,24 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
     setError(null);
 
     try {
+      // ✨ VALIDATE USER DATA FROM PROPS
+      if (!userId) {
+        throw new Error('User not authenticated. Please log in.');
+      }
+
+      if (!userEmail) {
+        throw new Error('User email not found.');
+      }
+
       console.log(`💳 Initiating Razorpay upgrade for tier: ${tier}`);
       
-      // Redirect to Razorpay payment link
-      redirectToRazorpayLink(tier);
+      // ✨ PASS USER DATA FROM PROPS TO RAZORPAY
+      redirectToRazorpayLink(
+        tier,
+        userId,
+        userEmail,
+        userProfile?.name || 'User'
+      );
 
       setIsLoading(false);
     } catch (err) {

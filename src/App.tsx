@@ -13,7 +13,9 @@ import {
   getUserSubscriptionTier,
 } from './services/firestoreService';
 import { getStyleAdvice } from './services/geminiService';
-// ✨ UPDATED: Razorpay import instead of LemonSqueezy
+// ✨ Import subscription expiration check
+import { isSubscriptionValid, expireSubscription } from './services/subscriptionService';
+// ✨ Razorpay import
 import { redirectToRazorpayLink, loadRazorpayScript } from './services/razorpayService';
 import type {
   StyleAdvice,
@@ -33,12 +35,10 @@ import UserDetailsSelector from './components/UserDetailsSelector';
 import AIResultDisplay from './components/AIResultDisplay';
 import Loader from './components/Loader';
 import {
-  LogoIcon,
   SparklesIcon,
   WardrobeIcon,
   EditIcon,
   CalendarIcon,
-  LogoutIcon,
   UserCircleIcon,
   ColorSwatchIcon,
 } from './components/Icons';
@@ -56,8 +56,8 @@ import PlanSelectionModal from './components/PlanSelectionModal';
 import SubscriptionManager from './components/SubscriptionManager';
 import { requestNotificationPermission } from './components/Notifications';
 import HomePage from './components/HomePage/HomePage';
-import ContactUs from './components/HomePage/ContactUs';
-import PrivacyPolicy from './components/HomePage/PrivacyPolicy';
+import ContactUs from './components/HomePage//ContactUs';
+import PrivacyPolicy from './components/HomePage//PrivacyPolicy';
 import logoImage from './images/logo.png';
 
 type View = 'stylist' | 'wardrobe' | 'editor' | 'colorMatrix' | 'calendar' | 'settings';
@@ -80,7 +80,7 @@ const App: React.FC = () => {
   // Auth state
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [authStep, setAuthStep] = useState<AuthStep>('loading');
-  const [showSignup, setShowSignup] = useState(false);
+  const [showSignup, setShowSignup] = useState(false); 
   const [userId, setUserId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
 
@@ -105,6 +105,54 @@ const App: React.FC = () => {
   const [todaySuggestion, setTodaySuggestion] = useState<OutfitData | null>(null);
 
   /**
+   * ✨ NEW: Check and expire subscriptions automatically
+   */
+  const checkSubscriptionExpiration = async (uid: string, profile: UserProfile) => {
+    if (!profile.subscription) return profile;
+
+    const sub = profile.subscription;
+
+    // ✅ Only check paid subscriptions
+    if (sub.tier === 'free' || sub.status !== 'active') {
+      return profile;
+    }
+
+    try {
+      // ✅ Check if subscription is expired
+      const isValid = isSubscriptionValid(sub);
+
+      if (!isValid) {
+        console.warn('⚠️ Subscription expired! Auto-downgrading to free...');
+        
+        // ✨ Expire subscription and downgrade to free
+        await expireSubscription(uid);
+        
+        // Update local state
+        const updatedProfile = {
+          ...profile,
+          subscription: {
+            ...sub,
+            tier: 'free' as SubscriptionTier,
+            status: 'expired' as const,
+          },
+        };
+
+        setSubscriptionTier('free');
+        setUserProfile(updatedProfile);
+        
+        // Show notification
+        setError('Your subscription has expired. You have been downgraded to the Free plan.');
+        
+        return updatedProfile;
+      }
+    } catch (err) {
+      console.error('❌ Error checking/expiring subscription:', err);
+    }
+
+    return profile;
+  };
+
+  /**
    * Check authentication state and load user data
    */
   useEffect(() => {
@@ -124,15 +172,26 @@ const App: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         console.log('✅ User logged in:', currentUser.uid);
+        
+        // ✨ Immediately show loader to prevent "stuck on login screen" issue
+        setAuthStep('loading');
+        
         setUserId(currentUser.uid);
         setUser(currentUser);
 
         try {
-          const profile = await loadUserProfile(currentUser.uid);
+          // Try to load the user profile from Firestore
+          let profile = await loadUserProfile(currentUser.uid);
 
           if (profile) {
+            // ✅ OLD USER FOUND -> Go to 'loggedIn'
+            
+            // ✨ NEW: Check subscription expiration on load
+            profile = await checkSubscriptionExpiration(currentUser.uid, profile);
+            
             setUserProfile(profile);
 
+            // Load other user data
             const wardrobeData = await loadWardrobe(currentUser.uid);
             setWardrobe(wardrobeData);
 
@@ -156,19 +215,37 @@ const App: React.FC = () => {
             setAuthStep('loggedIn');
             generateTodaySuggestion();
           } else {
+            // ❌ NEW USER (No profile found) -> Go to 'profile'
+            console.log('⚠️ No profile found, redirecting to profile creation');
             setAuthStep('profile');
           }
         } catch (error) {
           console.error('❌ Error loading user data:', error);
+          // Fallback: if we can't confirm profile, assume we need to create one
           setAuthStep('profile');
         }
       } else {
+        // No user logged in
         setAuthStep('login');
       }
     });
 
     return () => unsubscribe();
   }, []);
+
+  /**
+   * ✨ NEW: Periodic subscription expiration check (every 5 minutes)
+   */
+  useEffect(() => {
+    if (!userId || !userProfile || authStep !== 'loggedIn') return;
+
+    const interval = setInterval(async () => {
+      console.log('🔄 Periodic subscription check...');
+      await checkSubscriptionExpiration(userId, userProfile);
+    }, 5 * 60 * 1000); // Check every 5 minutes
+
+    return () => clearInterval(interval);
+  }, [userId, userProfile, authStep]);
 
   /**
    * Load subscription tier on mount
@@ -251,6 +328,7 @@ const App: React.FC = () => {
         setSelectedColors(profile.favoriteColors);
       }
 
+      // After saving profile, user is now "Old User" -> Logged In
       setAuthStep('loggedIn');
       generateTodaySuggestion();
       setupNotifications();
@@ -278,7 +356,7 @@ const App: React.FC = () => {
   };
 
   /**
-   * ✨ Handle plan selection with Razorpay
+   * Handle plan selection with Razorpay
    */
   const handlePlanSelect = async (tier: SubscriptionTier) => {
     setIsSelectingPlan(true);
@@ -298,8 +376,13 @@ const App: React.FC = () => {
 
       console.log('💳 Opening Razorpay payment for tier:', tier);
 
-      // ✨ Redirect to Razorpay payment link
-      redirectToRazorpayLink(tier);
+      // ✨ Pass user data to Razorpay
+      redirectToRazorpayLink(
+        tier,
+        userId,
+        user.email || 'user@example.com',
+        user.displayName || 'FitFx User'
+      );
 
       await markPlanModalSeen(userId);
       setShowPlanModal(false);
@@ -745,11 +828,13 @@ const App: React.FC = () => {
           element={
             authStep === 'loading' ? (
               <Loader />
-            ) : authStep === 'loggedIn' ? (
+            ) : authStep === 'loggedIn' || authStep === 'profile' ? ( // ✨ CORRECTED: Redirect if authenticated OR needing profile
               <Navigate to="/app" replace />
             ) : (
               <Login
-                onLoginSuccess={() => setAuthStep('profile')}
+                // ✨ setAuthStep to 'loading' to show spinner immediately while auth check happens
+                // This prevents UI from getting stuck on login form
+                onLoginSuccess={() => setAuthStep('loading')}
                 onSwitchToSignup={() => setShowSignup(true)}
               />
             )
@@ -761,11 +846,11 @@ const App: React.FC = () => {
           element={
             authStep === 'loading' ? (
               <Loader />
-            ) : authStep === 'loggedIn' ? (
+            ) : authStep === 'loggedIn' || authStep === 'profile' ? ( // ✨ CORRECTED: Redirect if authenticated OR needing profile
               <Navigate to="/app" replace />
             ) : (
               <Signup
-                onSignupSuccess={() => setAuthStep('profile')}
+                onSignupSuccess={() => setAuthStep('loading')}
                 onSwitchToLogin={() => setShowSignup(false)}
               />
             )
@@ -781,6 +866,7 @@ const App: React.FC = () => {
             ) : authStep === 'login' ? (
               <Navigate to="/login" replace />
             ) : authStep === 'profile' ? (
+              // ✨ CORRECTED: This logic handles "New User" flow correctly now
               <ProfileCreation onProfileSave={handleProfileSave} />
             ) : (
               renderAuthenticatedApp()
