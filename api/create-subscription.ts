@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import Razorpay from 'razorpay';
 
-// Enable CORS
+const Razorpay = require('razorpay');
+
 function setCorsHeaders(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -14,7 +14,7 @@ export default async function handler(
   res: VercelResponse
 ) {
   setCorsHeaders(res);
-
+  
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -25,58 +25,67 @@ export default async function handler(
 
   try {
     const { userId, userEmail, userName, tier } = req.body;
+    
+    console.log(`📦 Creating subscription for ${tier}`);
+    console.log(`👤 User: ${userId} (${userEmail})`);
 
-    console.log('📦 Create subscription request:', { userId, userEmail, tier });
-
-    // Validate inputs
-    if (!userId || !userEmail || !tier) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: userId, userEmail, tier' 
-      });
+    if (!userId || !tier) {
+      return res.status(400).json({ error: 'Missing userId or tier' });
     }
 
-    // Get plan ID based on tier
-    const planId = tier === 'style_plus'
-      ? process.env.REACT_APP_RAZORPAY_PLAN_STYLEPLUS
-      : process.env.REACT_APP_RAZORPAY_PLAN_STYLEX;
+    // Get environment variables
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const planStylePlus = process.env.RAZORPAY_PLAN_STYLEPLUS;
+    const planStyleX = process.env.RAZORPAY_PLAN_STYLEX;
+
+    // Validate credentials
+    if (!keyId || !keySecret) {
+      console.error('❌ Razorpay credentials missing');
+      return res.status(500).json({ error: 'Server configuration error: Missing API credentials' });
+    }
+
+    // Select correct plan ID
+    let planId = '';
+    if (tier === 'style_plus') {
+      planId = planStylePlus || '';
+    } else if (tier === 'style_x') {
+      planId = planStyleX || '';
+    }
 
     if (!planId) {
-      console.error(`❌ Plan ID not found for tier: ${tier}`);
-      return res.status(500).json({ 
-        error: `Plan ID not configured for tier: ${tier}` 
-      });
+      console.error(`❌ Plan ID not configured for tier: ${tier}`);
+      return res.status(500).json({ error: `Plan not configured for ${tier}` });
     }
 
-    console.log(`✅ Using plan ID: ${planId}`);
+    console.log(`📋 Using plan ID: ${planId}`);
 
     // Initialize Razorpay
     const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      key_id: keyId,
+      key_secret: keySecret,
     });
 
-    console.log(`🔧 Creating subscription for user ${userId}, tier: ${tier}`);
-
-    // ✨ Create NEW subscription (fresh subscription_id every time)
+    // Create subscription
     const subscription = await razorpay.subscriptions.create({
       plan_id: planId,
-      total_count: 1, // 1 billing cycle = 1 month
+      total_count: 12, // 12 months
       quantity: 1,
       customer_notify: 1,
       notes: {
-        userId: userId, // ✅ Critical: Pass userId for webhook
+        userId: userId,
         tier: tier,
-        email: userEmail,
-        name: userName,
+        userEmail: userEmail || '',
+        userName: userName || '',
       },
     });
 
-    console.log(`✅ Subscription created successfully: ${subscription.id}`);
+    console.log(`✅ Subscription created: ${subscription.id}`);
     console.log(`🔗 Payment URL: ${subscription.short_url}`);
 
     return res.status(200).json({
       subscriptionId: subscription.id,
-      shortUrl: subscription.short_url, // Razorpay payment page URL
+      shortUrl: subscription.short_url,
       status: subscription.status,
     });
 
@@ -85,7 +94,7 @@ export default async function handler(
     return res.status(500).json({
       error: 'Failed to create subscription',
       message: error.message,
-      details: error.response?.data || error.toString(),
+      details: error.error?.description || 'Check server logs',
     });
   }
 }

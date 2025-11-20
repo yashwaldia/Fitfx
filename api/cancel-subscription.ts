@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import Razorpay from 'razorpay';
+// ✅ FIXED: Use require for CommonJS compatibility
+const Razorpay = require('razorpay');
 import * as admin from 'firebase-admin';
 
 // Enable CORS
@@ -28,7 +29,6 @@ export default async function handler(
   res: VercelResponse
 ) {
   setCorsHeaders(res);
-
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -40,42 +40,43 @@ export default async function handler(
   try {
     const { userId, subscriptionId } = req.body;
 
-    console.log(`🚫 Cancellation request for user: ${userId}, sub: ${subscriptionId}`);
-
     if (!userId || !subscriptionId) {
-      return res.status(400).json({ 
-        error: 'Missing userId or subscriptionId' 
-      });
+      return res.status(400).json({ error: 'Missing userId or subscriptionId' });
     }
 
+    console.log(`🚫 Cancelling subscription: ${subscriptionId} for user: ${userId}`);
+
     // Initialize Razorpay
+    const keyId = process.env.RAZORPAY_KEY_ID || process.env.REACT_APP_RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET || process.env.REACT_APP_RAZORPAY_KEY_SECRET;
+
+    if (!keyId || !keySecret) {
+      console.error('❌ Razorpay credentials missing');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
     const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      key_id: keyId,
+      key_secret: keySecret,
     });
 
-    console.log(`🔧 Cancelling subscription on Razorpay: ${subscriptionId}`);
+    // Cancel subscription on Razorpay
+    await razorpay.subscriptions.cancel(subscriptionId);
+    console.log(`✅ Subscription cancelled on Razorpay: ${subscriptionId}`);
 
-    // 1. Cancel on Razorpay
-    // Fixed type error: passing false instead of 0
-    // Cast to any to avoid type mismatch with SDK definitions
-    const cancelledSub: any = await razorpay.subscriptions.cancel(subscriptionId, false);
-
-    console.log(`✅ Razorpay cancellation successful: ${cancelledSub?.id}`);
-
-    // 2. Update Firestore
+    // Update Firestore
     await db.collection('users').doc(userId).update({
       'subscription.status': 'cancelled',
-      'subscription.cancelledAt': new Date().toISOString(),
+      'subscription.cancelledAt': admin.firestore.FieldValue.serverTimestamp(),
+      'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    console.log(`✅ Firestore updated for user ${userId}`);
+    console.log(`✅ Subscription cancelled in Firestore for user: ${userId}`);
 
     return res.status(200).json({
       success: true,
       message: 'Subscription cancelled successfully',
-      subscription: cancelledSub,
     });
 
   } catch (error: any) {
@@ -83,7 +84,6 @@ export default async function handler(
     return res.status(500).json({
       error: 'Failed to cancel subscription',
       message: error.message,
-      details: error.response?.data || error.toString(),
     });
   }
 }
