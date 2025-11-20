@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { redirectToRazorpayLink } from '../services/razorpayService';
-import { updateSubscriptionTier, cancelSubscription } from '../services/firestoreService';
+// ✨ UPDATED IMPORTS: Use new subscription functions
+import { createAndRedirectToSubscription, cancelUserSubscription } from '../services/razorpayService';
 import { SUBSCRIPTION_PLANS, getPlanByTier } from '../constants/subscriptionPlans';
 import { SparklesIcon } from './Icons';
 import type { SubscriptionTier, UserProfile } from '../types';
@@ -22,6 +22,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Safe null coalescing with fallback
   const currentTier = userProfile?.subscription?.tier ?? 'free';
@@ -59,7 +60,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
   };
 
   /**
-   * ✨ Handle upgrade via Razorpay Payment Link
+   * ✨ Handle upgrade via Razorpay Subscription
    */
   const handleUpgrade = async (tier: 'style_plus' | 'style_x') => {
     setIsLoading(true);
@@ -75,16 +76,17 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
         throw new Error('User email not found.');
       }
 
-      console.log(`💳 Initiating Razorpay upgrade for tier: ${tier}`);
+      console.log(`💳 Initiating Razorpay subscription upgrade for tier: ${tier}`);
       
-      // ✨ PASS USER DATA FROM PROPS TO RAZORPAY
-      redirectToRazorpayLink(
+      // ✨ NEW: Create subscription via API
+      await createAndRedirectToSubscription(
         tier,
         userId,
         userEmail,
         userProfile?.name || 'User'
       );
 
+      // Note: Redirect happens inside the function, so we might not reach here
       setIsLoading(false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to open payment';
@@ -95,22 +97,34 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
   };
 
   /**
-   * Handle cancel subscription
+   * ✨ Handle cancel subscription via API
    */
   const handleCancel = async () => {
+    if (!subscription?.razorpaySubscriptionId) {
+      setError('No active subscription ID found to cancel.');
+      return;
+    }
+
     if (
       window.confirm(
-        'Are you sure you want to cancel your subscription? You will be downgraded to Free tier.'
+        'Are you sure you want to cancel your subscription? Your access will continue until the end of the current billing cycle, then you will be downgraded to Free tier.'
       )
     ) {
       setIsLoading(true);
       setError(null);
 
       try {
-        await cancelSubscription(userId);
-        onSubscriptionUpdated('free');
+        // ✨ Call backend API to cancel
+        await cancelUserSubscription(userId, subscription.razorpaySubscriptionId);
+        
+        setSuccessMessage('Subscription cancelled successfully. Access remains until end of cycle.');
+        
+        // Refresh UI (optional, or wait for webhook/reload)
+        setTimeout(() => {
+            window.location.reload();
+        }, 2000);
+        
         console.log('✅ Subscription cancelled');
-        setIsLoading(false);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to cancel subscription';
         setError(errorMessage);
@@ -126,6 +140,13 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
         <h2 className="text-3xl font-bold text-yellow-400 mb-6">
           💳 Subscription Settings
         </h2>
+
+        {/* Success Message */}
+        {successMessage && (
+          <div className="bg-green-900/30 border border-green-500/50 text-green-400 p-4 rounded-lg mb-6">
+             ✓ {successMessage}
+          </div>
+        )}
 
         {/* Current Plan */}
         <div className="bg-gray-900/50 rounded-xl p-6 mb-6 border border-gray-700">
@@ -155,7 +176,9 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
                 className={`px-4 py-2 rounded-full font-semibold whitespace-nowrap ${
                   currentTier === 'free'
                     ? 'bg-gray-700 text-gray-300'
-                    : 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/50'
+                    : subscription?.status === 'active' 
+                        ? 'bg-green-400/20 text-green-300 border border-green-400/50'
+                        : 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/50'
                 }`}
               >
                 {subscription?.status === 'active' ? '✓ Active' : '⚠ ' + (subscription?.status ?? 'unknown')}
@@ -284,13 +307,16 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
             )}
 
             {/* Cancel Subscription Button */}
-            <button
-              onClick={handleCancel}
-              disabled={isLoading}
-              className="w-full bg-red-500/20 border-2 border-red-500/50 hover:border-red-500 text-red-400 font-semibold py-3 rounded-lg transition-all disabled:opacity-50 hover:bg-red-500/30"
-            >
-              {isLoading ? '⏳ Processing...' : '❌ Cancel Subscription'}
-            </button>
+            {subscription?.razorpaySubscriptionId && (
+              <button
+                onClick={handleCancel}
+                disabled={isLoading}
+                className="w-full bg-red-500/20 border-2 border-red-500/50 hover:border-red-500 text-red-400 font-semibold py-3 rounded-lg transition-all disabled:opacity-50 hover:bg-red-500/30"
+              >
+                {isLoading ? '⏳ Processing...' : '❌ Cancel Subscription'}
+              </button>
+            )}
+            
             <p className="text-xs text-gray-500">
               Cancel anytime. Your access will continue until the end of your billing period.
             </p>
@@ -398,22 +424,22 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
               <p className="text-white font-semibold break-all">{userEmail}</p>
             </div>
 
+            {/* ✨ Razorpay Subscription ID (NEW) */}
+            {subscription?.razorpaySubscriptionId && (
+              <div>
+                <p className="text-gray-400">Subscription ID</p>
+                <p className="text-white font-mono text-xs break-all bg-gray-800 p-2 rounded">
+                  {subscription.razorpaySubscriptionId}
+                </p>
+              </div>
+            )}
+
             {/* ✨ Razorpay Payment ID */}
             {subscription?.razorpayPaymentId && (
               <div>
                 <p className="text-gray-400">Payment ID</p>
                 <p className="text-white font-mono text-xs break-all bg-gray-800 p-2 rounded">
                   {subscription.razorpayPaymentId}
-                </p>
-              </div>
-            )}
-
-            {/* ✨ Razorpay Order ID */}
-            {subscription?.razorpayOrderId && (
-              <div>
-                <p className="text-gray-400">Order ID</p>
-                <p className="text-white font-mono text-xs break-all bg-gray-800 p-2 rounded">
-                  {subscription.razorpayOrderId}
                 </p>
               </div>
             )}

@@ -62,20 +62,26 @@ export type BodyType =
 
 // ✅ Subscription Types
 export type SubscriptionTier = 'free' | 'style_plus' | 'style_x';
-export type SubscriptionStatus = 'active' | 'cancelled' | 'past_due' | 'expired';
+export type SubscriptionStatus = 'active' | 'cancelled' | 'past_due' | 'expired' | 'completed';
 
-// ✅ UPDATED: Subscription Interface (Razorpay instead of LemonSqueezy)
+// ✅ UPDATED: Subscription Interface (Razorpay Subscriptions API)
 export interface Subscription {
   tier: SubscriptionTier;
   status: SubscriptionStatus;
-  // ✨ RAZORPAY FIELDS (Replaced LemonSqueezy)
-  razorpayPaymentId?: string; // Payment ID from Razorpay
-  razorpayOrderId?: string; // Order ID from Razorpay
-  razorpaySignature?: string; // Signature for verification
+  
+  // ✨ RAZORPAY FIELDS
+  razorpaySubscriptionId?: string; // ✅ NEW: Subscription ID (sub_xxxxx)
+  razorpayPaymentId?: string;      // Payment ID from successful charge
+  razorpayOrderId?: string;        // Order ID
+  razorpaySignature?: string;      // Signature for verification
+  
   // ✨ TIMING
-  startDate?: string; // ISO timestamp
-  endDate?: string; // ISO timestamp
-  cancelAtPeriodEnd?: boolean; // Will cancel at end of billing period
+  startDate?: string;              // ISO timestamp
+  endDate?: string;                // ISO timestamp
+  cancelledAt?: string;            // ISO timestamp (when user cancelled)
+  completedAt?: string;            // ISO timestamp (when sub ended)
+  cancelAtPeriodEnd?: boolean;     // Will cancel at end of billing period
+  updatedAt?: any;                 // Firestore timestamp
 }
 
 // ✅ Feature Limits per Tier

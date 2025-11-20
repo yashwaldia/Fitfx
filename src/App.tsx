@@ -15,8 +15,8 @@ import {
 import { getStyleAdvice } from './services/geminiService';
 // ✨ Import subscription expiration check
 import { isSubscriptionValid, expireSubscription } from './services/subscriptionService';
-// ✨ Razorpay import
-import { redirectToRazorpayLink, loadRazorpayScript } from './services/razorpayService';
+// ✨ Razorpay import (UPDATED)
+import { createAndRedirectToSubscription, loadRazorpayScript } from './services/razorpayService';
 import type {
   StyleAdvice,
   Occasion,
@@ -67,12 +67,7 @@ type AuthStep = 'loading' | 'login' | 'profile' | 'loggedIn';
 if (typeof window !== 'undefined') {
   console.log('=== RAZORPAY CONFIGURATION ===');
   console.log('REACT_APP_RAZORPAY_KEY_ID:', process.env.REACT_APP_RAZORPAY_KEY_ID ? '✅ Configured' : '❌ Missing');
-  console.log('REACT_APP_RAZORPAY_PLUS_LINK:', process.env.REACT_APP_RAZORPAY_PLUS_LINK ? '✅ Configured' : '❌ Missing');
-  console.log('REACT_APP_RAZORPAY_X_LINK:', process.env.REACT_APP_RAZORPAY_X_LINK ? '✅ Configured' : '❌ Missing');
-  const allLoaded =
-    process.env.REACT_APP_RAZORPAY_KEY_ID &&
-    process.env.REACT_APP_RAZORPAY_PLUS_LINK &&
-    process.env.REACT_APP_RAZORPAY_X_LINK;
+  const allLoaded = !!process.env.REACT_APP_RAZORPAY_KEY_ID;
   console.log(allLoaded ? '✅ YES - Ready to use Razorpay!' : '❌ NO - Check .env.local');
 }
 
@@ -374,10 +369,10 @@ const App: React.FC = () => {
         return;
       }
 
-      console.log('💳 Opening Razorpay payment for tier:', tier);
+      console.log('💳 Opening Razorpay subscription for tier:', tier);
 
-      // ✨ Pass user data to Razorpay
-      redirectToRazorpayLink(
+      // ✨ UPDATED: Call NEW subscription API
+      await createAndRedirectToSubscription(
         tier,
         userId,
         user.email || 'user@example.com',
@@ -828,12 +823,11 @@ const App: React.FC = () => {
           element={
             authStep === 'loading' ? (
               <Loader />
-            ) : authStep === 'loggedIn' || authStep === 'profile' ? ( // ✨ CORRECTED: Redirect if authenticated OR needing profile
+            ) : authStep === 'loggedIn' || authStep === 'profile' ? (
               <Navigate to="/app" replace />
             ) : (
               <Login
                 // ✨ setAuthStep to 'loading' to show spinner immediately while auth check happens
-                // This prevents UI from getting stuck on login form
                 onLoginSuccess={() => setAuthStep('loading')}
                 onSwitchToSignup={() => setShowSignup(true)}
               />
@@ -846,7 +840,7 @@ const App: React.FC = () => {
           element={
             authStep === 'loading' ? (
               <Loader />
-            ) : authStep === 'loggedIn' || authStep === 'profile' ? ( // ✨ CORRECTED: Redirect if authenticated OR needing profile
+            ) : authStep === 'loggedIn' || authStep === 'profile' ? (
               <Navigate to="/app" replace />
             ) : (
               <Signup
@@ -866,7 +860,6 @@ const App: React.FC = () => {
             ) : authStep === 'login' ? (
               <Navigate to="/login" replace />
             ) : authStep === 'profile' ? (
-              // ✨ CORRECTED: This logic handles "New User" flow correctly now
               <ProfileCreation onProfileSave={handleProfileSave} />
             ) : (
               renderAuthenticatedApp()
