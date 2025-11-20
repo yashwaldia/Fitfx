@@ -1,19 +1,13 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
 const Razorpay = require('razorpay');
 
-function setCorsHeaders(res: VercelResponse) {
+function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-// ✅ CHANGED: Use module.exports instead of export default
-module.exports = async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-) {
+module.exports = async function handler(req, res) {
   setCorsHeaders(res);
   
   if (req.method === 'OPTIONS') {
@@ -103,7 +97,7 @@ module.exports = async function handler(
       status: subscription.status,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('═══════════════════════════════════════');
     console.error('❌ ERROR:', error.message);
     console.error('═══════════════════════════════════════');

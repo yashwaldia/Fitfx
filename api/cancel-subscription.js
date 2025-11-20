@@ -1,9 +1,7 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
 const Razorpay = require('razorpay');
 const admin = require('firebase-admin');
 
-function setCorsHeaders(res: VercelResponse) {
+function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -22,8 +20,7 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-// ✅ CHANGED: Use module.exports
-module.exports = async function handler(req: VercelRequest, res: VercelResponse) {
+module.exports = async function handler(req, res) {
   setCorsHeaders(res);
 
   if (req.method === 'OPTIONS') {
@@ -55,7 +52,7 @@ module.exports = async function handler(req: VercelRequest, res: VercelResponse)
 
     return res.status(200).json({ message: 'Subscription cancelled successfully' });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error cancelling subscription:', error);
     return res.status(500).json({
       error: 'Failed to cancel subscription',

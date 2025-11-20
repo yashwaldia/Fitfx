@@ -1,6 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import * as admin from 'firebase-admin';
-import * as crypto from 'crypto';
+const admin = require('firebase-admin');
+const crypto = require('crypto');
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
@@ -16,18 +15,18 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || '';
 
-function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
+function verifyWebhookSignature(payload, signature, secret) {
   const hash = crypto.createHmac('sha256', secret).update(payload).digest('hex');
   return hash === signature;
 }
 
-function calculateEndDate(): string {
+function calculateEndDate() {
   const now = new Date();
   const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   return endDate.toISOString();
 }
 
-async function handleSubscriptionCharged(data: any): Promise<void> {
+async function handleSubscriptionCharged(data) {
   const entity = data.entity || data;
   const notes = entity.notes || {};
   const userId = notes.userId || notes.user_id;
@@ -56,7 +55,7 @@ async function handleSubscriptionCharged(data: any): Promise<void> {
   console.log(`✅ Subscription activated: ${userId}`);
 }
 
-async function handleSubscriptionCancelled(data: any): Promise<void> {
+async function handleSubscriptionCancelled(data) {
   const notes = (data.entity || data).notes || {};
   const userId = notes.userId || notes.user_id;
   if (!userId) return;
@@ -69,7 +68,7 @@ async function handleSubscriptionCancelled(data: any): Promise<void> {
   console.log(`🚫 Subscription cancelled: ${userId}`);
 }
 
-async function handleSubscriptionCompleted(data: any): Promise<void> {
+async function handleSubscriptionCompleted(data) {
   const notes = (data.entity || data).notes || {};
   const userId = notes.userId || notes.user_id;
   if (!userId) return;
@@ -83,8 +82,7 @@ async function handleSubscriptionCompleted(data: any): Promise<void> {
   console.log(`🏁 Subscription expired: ${userId}`);
 }
 
-// ✅ CHANGED: Use module.exports instead of export default
-module.exports = async function handler(req: VercelRequest, res: VercelResponse) {
+module.exports = async function handler(req, res) {
   console.log('🔔 Webhook received');
 
   if (req.method !== 'POST') {
@@ -92,7 +90,7 @@ module.exports = async function handler(req: VercelRequest, res: VercelResponse)
   }
 
   try {
-    const signature = (req.headers['x-razorpay-signature'] as string) || '';
+    const signature = req.headers['x-razorpay-signature'] || '';
     const payload = JSON.stringify(req.body);
 
     if (!verifyWebhookSignature(payload, signature, WEBHOOK_SECRET)) {
@@ -120,8 +118,9 @@ module.exports = async function handler(req: VercelRequest, res: VercelResponse)
 
     return res.status(200).json({ success: true, event });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ Webhook error:', error.message);
     return res.status(500).json({ error: error.message });
   }
 };
+
