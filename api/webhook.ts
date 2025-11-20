@@ -16,31 +16,27 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || '';
 
-// Verify webhook signature
 function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
   const hash = crypto.createHmac('sha256', secret).update(payload).digest('hex');
   return hash === signature;
 }
 
-// Calculate 30-day expiration
 function calculateEndDate(): string {
   const now = new Date();
   const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   return endDate.toISOString();
 }
 
-// Handle subscription.charged (payment successful)
 async function handleSubscriptionCharged(data: any): Promise<void> {
   const entity = data.entity || data;
   const notes = entity.notes || {};
   const userId = notes.userId || notes.user_id;
   const tier = notes.tier || 'style_plus';
 
-  console.log(`💳 Processing payment for user: ${userId}, tier: ${tier}`);
+  console.log(`💳 Processing payment: ${userId}, tier: ${tier}`);
 
   if (!userId) {
-    console.error('❌ No userId in subscription notes');
-    throw new Error('No userId found in subscription notes');
+    throw new Error('No userId in subscription notes');
   }
 
   const endDate = calculateEndDate();
@@ -57,33 +53,25 @@ async function handleSubscriptionCharged(data: any): Promise<void> {
     'updatedAt': admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  console.log(`✅ Subscription activated: ${userId} - ${tier}`);
-  console.log(`📅 Expires: ${endDate}`);
+  console.log(`✅ Subscription activated: ${userId}`);
 }
 
-// Handle subscription.cancelled
 async function handleSubscriptionCancelled(data: any): Promise<void> {
-  const entity = data.entity || data;
-  const notes = entity.notes || {};
+  const notes = (data.entity || data).notes || {};
   const userId = notes.userId || notes.user_id;
-
   if (!userId) return;
 
   await db.collection('users').doc(userId).update({
     'subscription.status': 'cancelled',
     'subscription.cancelledAt': admin.firestore.FieldValue.serverTimestamp(),
-    'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp(),
   });
 
   console.log(`🚫 Subscription cancelled: ${userId}`);
 }
 
-// Handle subscription.completed (expired)
 async function handleSubscriptionCompleted(data: any): Promise<void> {
-  const entity = data.entity || data;
-  const notes = entity.notes || {};
+  const notes = (data.entity || data).notes || {};
   const userId = notes.userId || notes.user_id;
-
   if (!userId) return;
 
   await db.collection('users').doc(userId).update({
@@ -92,12 +80,12 @@ async function handleSubscriptionCompleted(data: any): Promise<void> {
     'subscription.completedAt': admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  console.log(`🏁 Subscription expired and downgraded: ${userId}`);
+  console.log(`🏁 Subscription expired: ${userId}`);
 }
 
-// Main webhook handler
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  console.log('🔔 Webhook received:', new Date().toISOString());
+// ✅ CHANGED: Use module.exports instead of export default
+module.exports = async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('🔔 Webhook received');
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -107,21 +95,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const signature = (req.headers['x-razorpay-signature'] as string) || '';
     const payload = JSON.stringify(req.body);
 
-    if (!WEBHOOK_SECRET) {
-      console.error('❌ Webhook secret not configured');
-      return res.status(500).json({ error: 'Server configuration error' });
-    }
-
-    // Verify signature
     if (!verifyWebhookSignature(payload, signature, WEBHOOK_SECRET)) {
-      console.warn('⚠️ Invalid webhook signature');
+      console.warn('⚠️ Invalid signature');
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { event, payload: eventPayload } = req.body;
     console.log(`📬 Event: ${event}`);
 
-    // Route to handlers
     switch (event) {
       case 'subscription.charged':
       case 'subscription.activated':
@@ -140,7 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ success: true, event });
 
   } catch (error: any) {
-    console.error('❌ Webhook error:', error);
+    console.error('❌ Webhook error:', error.message);
     return res.status(500).json({ error: error.message });
   }
-}
+};

@@ -9,7 +9,8 @@ function setCorsHeaders(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-export default async function handler(
+// ✅ CHANGED: Use module.exports instead of export default
+module.exports = async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
@@ -26,10 +27,13 @@ export default async function handler(
   try {
     const { userId, userEmail, userName, tier } = req.body;
     
-    console.log(`📦 Creating subscription for ${tier}`);
+    console.log('═══════════════════════════════════════');
+    console.log('📦 Create Subscription Request');
     console.log(`👤 User: ${userId} (${userEmail})`);
+    console.log(`🎯 Tier: ${tier}`);
 
     if (!userId || !tier) {
+      console.error('❌ Missing required fields');
       return res.status(400).json({ error: 'Missing userId or tier' });
     }
 
@@ -39,13 +43,20 @@ export default async function handler(
     const planStylePlus = process.env.RAZORPAY_PLAN_STYLEPLUS;
     const planStyleX = process.env.RAZORPAY_PLAN_STYLEX;
 
-    // Validate credentials
+    console.log('🔐 Environment Check:');
+    console.log(`  KEY_ID: ${keyId ? '✅' : '❌ MISSING'}`);
+    console.log(`  KEY_SECRET: ${keySecret ? '✅' : '❌ MISSING'}`);
+    console.log(`  PLAN_STYLEPLUS: ${planStylePlus || '❌ MISSING'}`);
+    console.log(`  PLAN_STYLEX: ${planStyleX || '❌ MISSING'}`);
+
     if (!keyId || !keySecret) {
       console.error('❌ Razorpay credentials missing');
-      return res.status(500).json({ error: 'Server configuration error: Missing API credentials' });
+      return res.status(500).json({
+        error: 'Server configuration error: Razorpay credentials not configured'
+      });
     }
 
-    // Select correct plan ID
+    // Select plan ID
     let planId = '';
     if (tier === 'style_plus') {
       planId = planStylePlus || '';
@@ -54,11 +65,13 @@ export default async function handler(
     }
 
     if (!planId) {
-      console.error(`❌ Plan ID not configured for tier: ${tier}`);
-      return res.status(500).json({ error: `Plan not configured for ${tier}` });
+      console.error(`❌ Plan ID not found for tier: ${tier}`);
+      return res.status(500).json({
+        error: `Plan ID not configured for tier: ${tier}`
+      });
     }
 
-    console.log(`📋 Using plan ID: ${planId}`);
+    console.log(`✅ Using plan ID: ${planId}`);
 
     // Initialize Razorpay
     const razorpay = new Razorpay({
@@ -66,10 +79,10 @@ export default async function handler(
       key_secret: keySecret,
     });
 
-    // Create subscription
+    console.log('📤 Creating subscription...');
     const subscription = await razorpay.subscriptions.create({
       plan_id: planId,
-      total_count: 12, // 12 months
+      total_count: 12,
       quantity: 1,
       customer_notify: 1,
       notes: {
@@ -80,8 +93,9 @@ export default async function handler(
       },
     });
 
-    console.log(`✅ Subscription created: ${subscription.id}`);
-    console.log(`🔗 Payment URL: ${subscription.short_url}`);
+    console.log('✅ Subscription created!');
+    console.log(`   ID: ${subscription.id}`);
+    console.log(`   URL: ${subscription.short_url}`);
 
     return res.status(200).json({
       subscriptionId: subscription.id,
@@ -90,11 +104,14 @@ export default async function handler(
     });
 
   } catch (error: any) {
-    console.error('❌ Error creating subscription:', error);
+    console.error('═══════════════════════════════════════');
+    console.error('❌ ERROR:', error.message);
+    console.error('═══════════════════════════════════════');
+    
     return res.status(500).json({
       error: 'Failed to create subscription',
       message: error.message,
-      details: error.error?.description || 'Check server logs',
+      details: error.error?.description || error.toString()
     });
   }
-}
+};
