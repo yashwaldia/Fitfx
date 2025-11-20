@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { auth } from './services/firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
@@ -27,6 +27,7 @@ import type {
   OutfitData,
   SubscriptionTier,
 } from './types';
+
 
 // Components
 import SelfieUploader from './components/SelfieUploader';
@@ -60,8 +61,10 @@ import ContactUs from './components/HomePage//ContactUs';
 import PrivacyPolicy from './components/HomePage//PrivacyPolicy';
 import logoImage from './images/logo.png';
 
+
 type View = 'stylist' | 'wardrobe' | 'editor' | 'colorMatrix' | 'calendar' | 'settings';
 type AuthStep = 'loading' | 'login' | 'profile' | 'loggedIn';
+
 
 // ✨ DEBUG: Log Razorpay configuration
 if (typeof window !== 'undefined') {
@@ -71,6 +74,7 @@ if (typeof window !== 'undefined') {
   console.log(allLoaded ? '✅ YES - Ready to use Razorpay!' : '❌ NO - Check .env.local');
 }
 
+
 const App: React.FC = () => {
   // Auth state
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -79,11 +83,13 @@ const App: React.FC = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
 
+
   // ✅ Subscription state
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [isSelectingPlan, setIsSelectingPlan] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
 
   // App state
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -98,6 +104,37 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>('stylist');
   const [todaySuggestion, setTodaySuggestion] = useState<OutfitData | null>(null);
+
+  // ✨ NEW: Payment notification state
+  const [paymentNotification, setPaymentNotification] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
+
+  /**
+   * ✨ NEW: Refresh user subscription from Firestore
+   */
+  const refreshUserSubscription = async (uid: string) => {
+    try {
+      console.log('🔄 Refreshing user subscription...');
+      const profile = await loadUserProfile(uid);
+      
+      if (profile) {
+        setUserProfile(profile);
+        
+        const newTier = profile.subscription?.tier || 'free';
+        setSubscriptionTier(newTier);
+        
+        console.log('✅ Subscription refreshed:', newTier);
+        return profile;
+      }
+    } catch (err) {
+      console.error('❌ Error refreshing subscription:', err);
+    }
+    return null;
+  };
+
 
   /**
    * ✨ NEW: Check and expire subscriptions automatically
@@ -146,6 +183,58 @@ const App: React.FC = () => {
 
     return profile;
   };
+
+
+  /**
+   * ✨ NEW: Handle payment callback from Razorpay
+   */
+  useEffect(() => {
+    const handlePaymentCallback = async () => {
+      // Only run when user is logged in
+      if (!userId || authStep !== 'loggedIn') return;
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const paymentStatus = urlParams.get('payment_status');
+      const razorpayPaymentId = urlParams.get('razorpay_payment_id');
+      const razorpaySubscriptionId = urlParams.get('razorpay_subscription_id');
+
+      if (paymentStatus) {
+        console.log('💳 Payment callback detected:', paymentStatus);
+
+        if (paymentStatus === 'success') {
+          // Show success notification
+          setPaymentNotification({
+            type: 'success',
+            message: '🎉 Payment successful! Your subscription is being activated...',
+          });
+
+          // Wait a moment for webhook to process
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          // Refresh subscription from Firestore
+          await refreshUserSubscription(userId);
+
+          // Clear notification after 5 seconds
+          setTimeout(() => setPaymentNotification(null), 5000);
+
+          console.log('✅ Subscription updated after payment');
+        } else if (paymentStatus === 'failed') {
+          setPaymentNotification({
+            type: 'error',
+            message: '❌ Payment failed. Please try again.',
+          });
+
+          setTimeout(() => setPaymentNotification(null), 5000);
+        }
+
+        // Clean up URL parameters
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    };
+
+    handlePaymentCallback();
+  }, [userId, authStep]);
+
 
   /**
    * Check authentication state and load user data
@@ -228,6 +317,7 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+
   /**
    * ✨ NEW: Periodic subscription expiration check (every 5 minutes)
    */
@@ -241,6 +331,7 @@ const App: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [userId, userProfile, authStep]);
+
 
   /**
    * Load subscription tier on mount
@@ -260,6 +351,7 @@ const App: React.FC = () => {
       loadSubscription();
     }
   }, [userId, authStep]);
+
 
   /**
    * Generate today's suggestion
@@ -289,6 +381,7 @@ const App: React.FC = () => {
       console.error('❌ Failed to generate today\'s suggestion:', error);
     }
   };
+
 
   /**
    * Handle profile save
@@ -336,6 +429,7 @@ const App: React.FC = () => {
     }
   };
 
+
   /**
    * Setup notifications
    */
@@ -349,6 +443,7 @@ const App: React.FC = () => {
       console.error('❌ Failed to set up notifications:', error);
     }
   };
+
 
   /**
    * Handle plan selection with Razorpay
@@ -389,6 +484,7 @@ const App: React.FC = () => {
     }
   };
 
+
   /**
    * Handle subscription updated
    */
@@ -398,7 +494,13 @@ const App: React.FC = () => {
       userProfile.subscription.tier = newTier;
       setUserProfile({ ...userProfile });
     }
+    
+    // ✨ NEW: Also refresh from Firestore to ensure sync
+    if (userId) {
+      await refreshUserSubscription(userId);
+    }
   };
+
 
   /**
    * Handle open plan modal
@@ -406,6 +508,7 @@ const App: React.FC = () => {
   const handleOpenPlanModal = () => {
     setShowPlanModal(true);
   };
+
 
   /**
    * Handle logout
@@ -423,11 +526,13 @@ const App: React.FC = () => {
       setShowLogoutConfirm(false);
       setView('stylist');
       setSubscriptionTier('free');
+      setPaymentNotification(null);
       console.log('✅ Logged out successfully');
     } catch (error) {
       console.error('❌ Error logging out:', error);
     }
   };
+
 
   /**
    * Handle color select
@@ -435,6 +540,7 @@ const App: React.FC = () => {
   const handleColorSelect = (hex: string) => {
     setSelectedColors((prev) => (prev.includes(hex) ? prev.filter((c) => c !== hex) : [...prev, hex]));
   };
+
 
   /**
    * Handle add to wardrobe
@@ -453,6 +559,7 @@ const App: React.FC = () => {
       setError('Failed to add item to wardrobe. Please try again.');
     }
   };
+
 
   /**
    * Handle update wardrobe
@@ -474,6 +581,7 @@ const App: React.FC = () => {
     }
   };
 
+
   /**
    * Handle delete from wardrobe
    */
@@ -492,6 +600,7 @@ const App: React.FC = () => {
       setError('Failed to delete item. Please try again.');
     }
   };
+
 
   /**
    * Handle submit for style advice
@@ -530,7 +639,9 @@ const App: React.FC = () => {
     }
   }, [uploadedImage, occasion, country, age, gender, selectedColors, wardrobe, userProfile]);
 
+
   // ==================== RENDER FUNCTIONS ====================
+
 
   const renderStylistView = () => (
     <div className="space-y-8">
@@ -594,6 +705,7 @@ const App: React.FC = () => {
     </div>
   );
 
+
   const renderWardrobeView = () => (
     <WardrobeUploader
       wardrobe={wardrobe}
@@ -605,6 +717,7 @@ const App: React.FC = () => {
     />
   );
 
+
   const renderEditorView = () => (
     <ImageEditor
       wardrobe={wardrobe}
@@ -613,9 +726,12 @@ const App: React.FC = () => {
     />
   );
 
+
   const renderColorMatrixView = () => <ColorMatrix userProfile={userProfile} wardrobe={wardrobe} />;
 
+
   const renderCalendarView = () => <CalendarPlan />;
+
 
   const renderSettingsView = () =>
     userProfile?.subscription && user ? (
@@ -628,7 +744,9 @@ const App: React.FC = () => {
       />
     ) : null;
 
+
   // ==================== MAIN APP RENDER ====================
+
 
   const renderAuthenticatedApp = () => (
     <div className="min-h-screen bg-gray-900 text-gray-200">
@@ -639,6 +757,32 @@ const App: React.FC = () => {
         onClose={() => setShowPlanModal(false)}
         currentTier={subscriptionTier}
       />
+
+      {/* ✨ NEW: Payment notification banner */}
+      {paymentNotification && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-down">
+          <div
+            className={`px-6 py-4 rounded-lg shadow-2xl border-2 ${
+              paymentNotification.type === 'success'
+                ? 'bg-green-900/90 border-green-500 text-green-100'
+                : 'bg-red-900/90 border-red-500 text-red-100'
+            } backdrop-blur-sm`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-lg">
+                {paymentNotification.type === 'success' ? '✅' : '❌'}
+              </span>
+              <p className="font-semibold">{paymentNotification.message}</p>
+              <button
+                onClick={() => setPaymentNotification(null)}
+                className="ml-4 text-xl hover:opacity-70 transition-opacity"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <header className="sticky top-0 z-50 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700 px-4 md:px-6 lg:px-8 py-3 md:py-4">
         <div className="max-w-full mx-auto">
@@ -804,7 +948,9 @@ const App: React.FC = () => {
     </div>
   );
 
+
   // ==================== ROUTER SETUP ====================
+
 
   return (
     <BrowserRouter>
@@ -873,5 +1019,6 @@ const App: React.FC = () => {
     </BrowserRouter>
   );
 };
+
 
 export default App;

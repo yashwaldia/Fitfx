@@ -9,6 +9,19 @@ import {
 import { db } from './firebaseConfig';
 import type { UserProfile, Garment, Subscription, SubscriptionTier } from '../types';
 
+
+/**
+ * ✨ Usage tracking interface
+ */
+export interface UsageStats {
+  colorSuggestions: number;
+  outfitPreviews: number;
+  wardrobeUploads: number;
+  chatMessages: number;
+  lastReset: string;
+}
+
+
 /**
  * Clean profile data - remove undefined fields
  */
@@ -28,6 +41,7 @@ const cleanProfile = (profile: UserProfile) => {
   return cleaned;
 };
 
+
 /**
  * ✨ Initialize subscription for new user (ROOT level)
  */
@@ -39,6 +53,21 @@ const initializeSubscription = (): Subscription => {
   };
 };
 
+
+/**
+ * ✨ NEW: Initialize usage stats
+ */
+const initializeUsageStats = (): UsageStats => {
+  return {
+    colorSuggestions: 0,
+    outfitPreviews: 0,
+    wardrobeUploads: 0,
+    chatMessages: 0,
+    lastReset: new Date().toISOString(),
+  };
+};
+
+
 /**
  * ✅ Save user profile to Firestore
  * Saves subscription at ROOT level (NOT nested in profile)
@@ -48,6 +77,7 @@ export const saveUserProfile = async (userId: string, profile: UserProfile) => {
     const cleanedProfile = cleanProfile(profile);
 
     const subscription = profile.subscription || initializeSubscription();
+    const usage = initializeUsageStats();
 
     // ✅ FIXED: subscription at ROOT level, NOT inside profile
     await setDoc(
@@ -55,6 +85,7 @@ export const saveUserProfile = async (userId: string, profile: UserProfile) => {
       {
         profile: cleanedProfile, // ← Profile data
         subscription: subscription, // ✅ ROOT level subscription
+        usage: usage, // ✨ NEW: Usage tracking
         wardrobe: [],
         hasSeenPlanModal: profile.hasSeenPlanModal || false,
         createdAt: new Date().toISOString(),
@@ -69,6 +100,7 @@ export const saveUserProfile = async (userId: string, profile: UserProfile) => {
     throw error;
   }
 };
+
 
 /**
  * ✅ Load user profile from Firestore
@@ -100,6 +132,14 @@ export const loadUserProfile = async (userId: string): Promise<UserProfile | nul
         });
       }
 
+      // ✨ NEW: Initialize usage if missing
+      if (!data.usage) {
+        console.log('⚠️ Initializing missing usage stats for user:', userId);
+        await updateDoc(docRef, {
+          usage: initializeUsageStats(),
+        });
+      }
+
       // Attach subscription and other root-level fields to profile
       profile.hasSeenPlanModal = data.hasSeenPlanModal || false;
       profile.subscription = subscription;
@@ -115,6 +155,7 @@ export const loadUserProfile = async (userId: string): Promise<UserProfile | nul
     throw error;
   }
 };
+
 
 /**
  * ✅ Get subscription from ROOT level
@@ -150,6 +191,7 @@ export const getSubscription = async (userId: string): Promise<Subscription | nu
   }
 };
 
+
 /**
  * ✅ Get subscription tier
  */
@@ -164,6 +206,7 @@ export const getUserSubscriptionTier = async (userId: string): Promise<Subscript
     return 'free';
   }
 };
+
 
 /**
  * ✅ Check if user has premium subscription
@@ -180,35 +223,45 @@ export const hasPremiumSubscription = async (userId: string): Promise<boolean> =
   }
 };
 
+
 /**
- * ✅ Update subscription tier (after payment)
- * ✨ Uses Razorpay fields: razorpayPaymentId, razorpayOrderId
+ * ✅ UPDATED: Consolidated subscription update function
+ * Updates subscription at ROOT level with all necessary fields
  */
 export const updateSubscriptionTier = async (
   userId: string,
   tier: SubscriptionTier,
   subscriptionData?: {
     razorpayPaymentId?: string;
+    razorpaySubscriptionId?: string;
     razorpayOrderId?: string;
     endDate?: string;
+    status?: 'active' | 'cancelled' | 'expired' | 'paused' | 'created' | 'payment_failed';
   }
 ): Promise<Subscription> => {
   try {
-    // ✨ FIXED: Use Razorpay fields
-    const subscription: Subscription = {
-      tier,
-      status: 'active',
-      razorpayPaymentId: subscriptionData?.razorpayPaymentId,
-      razorpayOrderId: subscriptionData?.razorpayOrderId,
-      startDate: new Date().toISOString(),
-      endDate: subscriptionData?.endDate,
-    };
+    console.log(`🔄 Updating subscription for user ${userId} to tier ${tier}`);
 
     const docRef = doc(db, 'users', userId);
 
-    // ✅ FIXED: Update subscription at ROOT level
+    // Get existing subscription to preserve data
+    const docSnap = await getDoc(docRef);
+    const existingSubscription = docSnap.exists() ? docSnap.data().subscription : null;
+
+    // ✨ Build updated subscription object
+    const subscription: Subscription = {
+      tier,
+      status: subscriptionData?.status || 'active',
+      razorpayPaymentId: subscriptionData?.razorpayPaymentId || existingSubscription?.razorpayPaymentId,
+      razorpaySubscriptionId: subscriptionData?.razorpaySubscriptionId || existingSubscription?.razorpaySubscriptionId,
+      razorpayOrderId: subscriptionData?.razorpayOrderId || existingSubscription?.razorpayOrderId,
+      startDate: existingSubscription?.startDate || new Date().toISOString(),
+      endDate: subscriptionData?.endDate || existingSubscription?.endDate,
+    };
+
+    // ✅ Update subscription at ROOT level
     await updateDoc(docRef, {
-      subscription: subscription, // ✅ ROOT level
+      subscription: subscription,
       hasSeenPlanModal: true,
       updatedAt: new Date().toISOString(),
     });
@@ -221,20 +274,28 @@ export const updateSubscriptionTier = async (
   }
 };
 
+
 /**
- * ✅ Cancel subscription (downgrade to free)
+ * ✅ UPDATED: Cancel subscription (downgrade to free) with proper state management
  */
 export const cancelSubscription = async (userId: string): Promise<void> => {
   try {
-    const docRef = doc(db, 'users', userId);
+    console.log(`🚫 Cancelling subscription for user ${userId}`);
 
-    // ✅ FIXED: Update subscription at ROOT level
+    const docRef = doc(db, 'users', userId);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      throw new Error('User document not found');
+    }
+
+    const existingSubscription = docSnap.data().subscription;
+
+    // ✅ Preserve subscription IDs for reference
     await updateDoc(docRef, {
-      subscription: {
-        tier: 'free',
-        status: 'cancelled',
-        startDate: new Date().toISOString(),
-      },
+      'subscription.tier': 'free',
+      'subscription.status': 'cancelled',
+      'subscription.cancelledAt': new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
 
@@ -244,6 +305,7 @@ export const cancelSubscription = async (userId: string): Promise<void> => {
     throw error;
   }
 };
+
 
 /**
  * ✅ Mark plan modal as seen
@@ -262,11 +324,216 @@ export const markPlanModalSeen = async (userId: string): Promise<void> => {
   }
 };
 
+
+// ═══════════════════════════════════════════════════════════════
+// ✨ NEW: USAGE TRACKING FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+
+
+/**
+ * ✨ NEW: Get user usage stats
+ */
+export const getUserUsage = async (userId: string): Promise<UsageStats | null> => {
+  try {
+    const docRef = doc(db, 'users', userId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const usage = data.usage || initializeUsageStats();
+
+      // Check if usage needs to be reset (monthly reset)
+      const lastReset = new Date(usage.lastReset);
+      const now = new Date();
+      const daysSinceReset = (now.getTime() - lastReset.getTime()) / (1000 * 60 * 60 * 24);
+
+      if (daysSinceReset > 30) {
+        console.log('⚠️ Usage stats expired, resetting...');
+        const resetUsage = initializeUsageStats();
+        await updateDoc(docRef, { usage: resetUsage });
+        return resetUsage;
+      }
+
+      return usage;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('❌ Error getting usage stats:', error);
+    return null;
+  }
+};
+
+
+/**
+ * ✨ NEW: Increment usage counter
+ */
+export const incrementUsage = async (
+  userId: string,
+  type: 'colorSuggestions' | 'outfitPreviews' | 'wardrobeUploads' | 'chatMessages'
+): Promise<void> => {
+  try {
+    const docRef = doc(db, 'users', userId);
+    const currentUsage = await getUserUsage(userId);
+
+    if (!currentUsage) {
+      console.warn('⚠️ No usage stats found, initializing...');
+      await updateDoc(docRef, { usage: initializeUsageStats() });
+      return;
+    }
+
+    const updatedUsage = {
+      ...currentUsage,
+      [type]: currentUsage[type] + 1,
+    };
+
+    await updateDoc(docRef, {
+      usage: updatedUsage,
+      updatedAt: new Date().toISOString(),
+    });
+
+    console.log(`✅ Incremented ${type} usage: ${updatedUsage[type]}`);
+  } catch (error) {
+    console.error(`❌ Error incrementing ${type} usage:`, error);
+    throw error;
+  }
+};
+
+
+/**
+ * ✨ NEW: Check if user can perform action based on tier limits
+ */
+export const canPerformAction = async (
+  userId: string,
+  action: 'colorSuggestions' | 'outfitPreviews' | 'wardrobeUploads' | 'chatMessages'
+): Promise<boolean> => {
+  try {
+    const tier = await getUserSubscriptionTier(userId);
+    const usage = await getUserUsage(userId);
+
+    if (!usage) return false;
+
+    // Define limits per tier
+    const limits = {
+      free: {
+        colorSuggestions: 5,
+        outfitPreviews: 3,
+        wardrobeUploads: 5,
+        chatMessages: 10,
+      },
+      style_plus: {
+        colorSuggestions: 10,
+        outfitPreviews: 10,
+        wardrobeUploads: 50,
+        chatMessages: 50,
+      },
+      style_x: {
+        colorSuggestions: 999,
+        outfitPreviews: 999,
+        wardrobeUploads: 999,
+        chatMessages: 999,
+      },
+    };
+
+    const limit = limits[tier][action];
+    const currentUsage = usage[action];
+
+    const canPerform = currentUsage < limit;
+
+    console.log(`🔍 Can perform ${action}? ${canPerform} (${currentUsage}/${limit})`);
+
+    return canPerform;
+  } catch (error) {
+    console.error('❌ Error checking action permission:', error);
+    return false;
+  }
+};
+
+
+/**
+ * ✨ NEW: Get remaining usage for display
+ */
+export const getRemainingUsage = async (userId: string): Promise<{
+  colorSuggestions: { used: number; limit: number; remaining: number };
+  outfitPreviews: { used: number; limit: number; remaining: number };
+  wardrobeUploads: { used: number; limit: number; remaining: number };
+  chatMessages: { used: number; limit: number; remaining: number };
+} | null> => {
+  try {
+    const tier = await getUserSubscriptionTier(userId);
+    const usage = await getUserUsage(userId);
+
+    if (!usage) return null;
+
+    const limits = {
+      free: {
+        colorSuggestions: 5,
+        outfitPreviews: 3,
+        wardrobeUploads: 5,
+        chatMessages: 10,
+      },
+      style_plus: {
+        colorSuggestions: 10,
+        outfitPreviews: 10,
+        wardrobeUploads: 50,
+        chatMessages: 50,
+      },
+      style_x: {
+        colorSuggestions: 999,
+        outfitPreviews: 999,
+        wardrobeUploads: 999,
+        chatMessages: 999,
+      },
+    };
+
+    const tierLimits = limits[tier];
+
+    return {
+      colorSuggestions: {
+        used: usage.colorSuggestions,
+        limit: tierLimits.colorSuggestions,
+        remaining: Math.max(0, tierLimits.colorSuggestions - usage.colorSuggestions),
+      },
+      outfitPreviews: {
+        used: usage.outfitPreviews,
+        limit: tierLimits.outfitPreviews,
+        remaining: Math.max(0, tierLimits.outfitPreviews - usage.outfitPreviews),
+      },
+      wardrobeUploads: {
+        used: usage.wardrobeUploads,
+        limit: tierLimits.wardrobeUploads,
+        remaining: Math.max(0, tierLimits.wardrobeUploads - usage.wardrobeUploads),
+      },
+      chatMessages: {
+        used: usage.chatMessages,
+        limit: tierLimits.chatMessages,
+        remaining: Math.max(0, tierLimits.chatMessages - usage.chatMessages),
+      },
+    };
+  } catch (error) {
+    console.error('❌ Error getting remaining usage:', error);
+    return null;
+  }
+};
+
+
+// ═══════════════════════════════════════════════════════════════
+// WARDROBE FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+
+
 /**
  * Save wardrobe item to Firestore
  */
 export const addWardrobeItem = async (userId: string, garment: Garment) => {
   try {
+    // ✨ NEW: Check if user can add wardrobe item
+    const canAdd = await canPerformAction(userId, 'wardrobeUploads');
+
+    if (!canAdd) {
+      throw new Error('Wardrobe upload limit reached. Please upgrade your plan.');
+    }
+
     const docRef = doc(db, 'users', userId);
 
     const docSnap = await getDoc(docRef);
@@ -285,6 +552,7 @@ export const addWardrobeItem = async (userId: string, garment: Garment) => {
           profile: {},
           wardrobe: [garmentWithMeta],
           subscription: initializeSubscription(), // ✅ Initialize at ROOT level
+          usage: initializeUsageStats(), // ✨ NEW: Initialize usage
           hasSeenPlanModal: false,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -299,12 +567,16 @@ export const addWardrobeItem = async (userId: string, garment: Garment) => {
       });
     }
 
+    // ✨ NEW: Increment usage counter
+    await incrementUsage(userId, 'wardrobeUploads');
+
     console.log('✅ Wardrobe item added to Firestore');
   } catch (error) {
     console.error('❌ Error adding wardrobe item:', error);
     throw error;
   }
 };
+
 
 /**
  * Load wardrobe from Firestore
@@ -325,6 +597,7 @@ export const loadWardrobe = async (userId: string): Promise<Garment[]> => {
     throw error;
   }
 };
+
 
 /**
  * Update wardrobe item in Firestore
@@ -366,6 +639,7 @@ export const updateWardrobeItem = async (
   }
 };
 
+
 /**
  * Delete wardrobe item from Firestore
  */
@@ -392,6 +666,7 @@ export const deleteWardrobeItem = async (userId: string, index: number, allGarme
     throw error;
   }
 };
+
 
 /**
  * Helper function to compress image to Base64

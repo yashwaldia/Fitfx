@@ -1,12 +1,17 @@
 import { GoogleGenAI, Type, Modality, Chat } from "@google/genai";
 // ✨ UPDATED: Import Country and AIGeneratedDressRow
 import type { Occasion, Country, StyleAdvice, Gender, Garment, UserProfile, SubscriptionTier, AIGeneratedDressRow } from '../types';
+// ✨ NEW: Import usage tracking functions
+import { canPerformAction, incrementUsage } from './firestoreService';
+
 
 const API_KEY = process.env.REACT_APP_GEMINI_API;
 const IMAGE_API_KEY = process.env.REACT_APP_GEMINI_IMAGE_API;
 
+
 const ai = new GoogleGenAI({ apiKey: API_KEY || "" });
 const imageAI = new GoogleGenAI({ apiKey: IMAGE_API_KEY || API_KEY || "" });
+
 
 const fileToGenerativePart = (base64: string, mimeType: string) => {
   return {
@@ -17,9 +22,11 @@ const fileToGenerativePart = (base64: string, mimeType: string) => {
   };
 };
 
+
 const getMimeTypeFromBase64 = (base64: string): string => {
     return base64.substring(base64.indexOf(":") + 1, base64.indexOf(";"));
 }
+
 
 const outfitIdeaSchema = {
     type: Type.OBJECT,
@@ -34,6 +41,7 @@ const outfitIdeaSchema = {
     required: ["outfitName", "colorName", "fabricType", "idealOccasion", "whyItWorks", "suggestedPairingItems"]
 };
 
+
 // ✨ NEW: Schema for AI-Generated Dress Matrix
 const dressMatrixRowSchema = {
     type: Type.OBJECT,
@@ -47,6 +55,7 @@ const dressMatrixRowSchema = {
     },
     required: ["country", "gender", "dressName", "description", "occasion", "notes"]
 };
+
 
 const styleAdviceSchema = {
     type: Type.OBJECT,
@@ -96,6 +105,7 @@ const styleAdviceSchema = {
     required: ["fashionSummary", "colorPalette", "outfitIdeas", "wardrobeOutfitIdeas", "generatedDressMatrix", "materialAdvice", "motivationalNote"]
 };
 
+
 // NEW: Subscription-aware outfit count
 const getOutfitCount = (tier: SubscriptionTier): number => {
   switch(tier) {
@@ -106,7 +116,11 @@ const getOutfitCount = (tier: SubscriptionTier): number => {
   }
 };
 
-// ✨ UPDATED: Changed 'style: Style' to 'country: Country'
+
+/**
+ * ✅ UPDATED: Added optional userId parameter and usage tracking
+ * ⚠️ MINIMAL CHANGE: Only added userId parameter, everything else stays the same
+ */
 export const getStyleAdvice = async (
   imageBase64: string,
   occasion: Occasion,
@@ -116,8 +130,21 @@ export const getStyleAdvice = async (
   preferredColors: string[],
   wardrobe: Garment[],
   userProfile?: UserProfile | null,
-  subscriptionTier: SubscriptionTier = 'free'
+  subscriptionTier: SubscriptionTier = 'free',
+  userId?: string // ✨ NEW: Optional userId for usage tracking
 ): Promise<StyleAdvice> => {
+  
+  // ✨ NEW: Check usage limits before API call (only if userId provided)
+  if (userId) {
+    const canGenerate = await canPerformAction(userId, 'outfitPreviews');
+    
+    if (!canGenerate) {
+      throw new Error(
+        'Outfit preview limit reached! Upgrade to Style+ or StyleX for more generations.'
+      );
+    }
+  }
+
   const model = 'gemini-2.0-flash-exp';
   
   const mimeType = getMimeTypeFromBase64(imageBase64);
@@ -195,12 +222,21 @@ export const getStyleAdvice = async (
     if (!jsonText) {
       throw new Error("Empty response from AI model");
     }
-    return JSON.parse(jsonText) as StyleAdvice;
+    
+    const styleAdvice = JSON.parse(jsonText) as StyleAdvice;
+    
+    // ✨ NEW: Increment usage counter after successful generation (only if userId provided)
+    if (userId) {
+      await incrementUsage(userId, 'outfitPreviews');
+    }
+    
+    return styleAdvice;
   } catch (error) {
     console.error("Failed to parse Gemini response:");
     throw new Error("The AI returned an invalid response. Please try again.");
   }
 };
+
 
 export const editImage = async (
   imageBase64: string,
@@ -238,6 +274,7 @@ export const editImage = async (
 
   throw new Error("Could not find an image in the AI response.");
 };
+
 
 export const startChat = (): Chat => {
     const chat = ai.chats.create({

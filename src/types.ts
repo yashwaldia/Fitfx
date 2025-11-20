@@ -5,6 +5,7 @@ export interface ColorPaletteItem {
   description: string;
 }
 
+
 // ✨ UPDATED: 9 Occasions instead of 4
 export type Occasion =
   | 'Traditional'
@@ -17,6 +18,7 @@ export type Occasion =
   | 'Business'
   | 'Street Fusion';
 
+
 // ✨ NEW: Country type (Global style support)
 export type Country =
   | 'India'
@@ -26,10 +28,13 @@ export type Country =
   | 'Africa (Nigeria, Ghana, Kenya)'
   | 'Arab Region';
 
+
 // ✅ KEPT FOR BACKWARD COMPATIBILITY
 export type Style = 'American' | 'Indian' | 'Fusion' | 'Other';
 
+
 export type Gender = 'Male' | 'Female' | 'Unisex' | 'Kids';
+
 
 export type AgeGroup =
   | 'Teen (13-17)'
@@ -37,6 +42,7 @@ export type AgeGroup =
   | 'Adult (26-35)'
   | 'Middle-Aged (36-45)'
   | 'Senior (46+)';
+
 
 export type BodyType =
   | 'Rectangle'
@@ -60,9 +66,21 @@ export type BodyType =
   | 'Bottom Hourglass'
   | 'Plus Size';
 
+
 // ✅ Subscription Types
 export type SubscriptionTier = 'free' | 'style_plus' | 'style_x';
-export type SubscriptionStatus = 'active' | 'cancelled' | 'past_due' | 'expired' | 'completed';
+
+// ✅ UPDATED: Added new subscription statuses
+export type SubscriptionStatus = 
+  | 'active'           // ✅ Subscription is active and paid
+  | 'cancelled'        // ✅ User cancelled, will expire at period end
+  | 'past_due'         // ✅ Payment failed, grace period
+  | 'expired'          // ✅ Subscription expired (time-based)
+  | 'completed'        // ✅ Subscription completed naturally
+  | 'created'          // ✨ NEW: Subscription created but not yet paid
+  | 'paused'           // ✨ NEW: Subscription paused by user
+  | 'payment_failed';  // ✨ NEW: Payment failed (different from past_due)
+
 
 // ✅ UPDATED: Subscription Interface (Razorpay Subscriptions API)
 export interface Subscription {
@@ -80,9 +98,14 @@ export interface Subscription {
   endDate?: string;                // ISO timestamp
   cancelledAt?: string;            // ISO timestamp (when user cancelled)
   completedAt?: string;            // ISO timestamp (when sub ended)
+  pausedAt?: string;               // ✨ NEW: ISO timestamp (when paused)
+  resumedAt?: string;              // ✨ NEW: ISO timestamp (when resumed)
+  lastPaymentDate?: string;        // ✨ NEW: ISO timestamp of last successful payment
+  lastFailedPayment?: string;      // ✨ NEW: ISO timestamp of last failed payment
   cancelAtPeriodEnd?: boolean;     // Will cancel at end of billing period
   updatedAt?: any;                 // Firestore timestamp
 }
+
 
 // ✅ Feature Limits per Tier
 export interface FeatureLimits {
@@ -94,6 +117,7 @@ export interface FeatureLimits {
   chatbotAccess: 'basic' | 'standard' | 'premium';
 }
 
+
 export interface Garment {
   image: string;
   material: string;
@@ -101,6 +125,7 @@ export interface Garment {
   id?: string;
   uploadedAt?: string;
 }
+
 
 export interface OutfitIdea {
   outfitName: string;
@@ -111,6 +136,7 @@ export interface OutfitIdea {
   suggestedPairingItems: string;
 }
 
+
 // ✨ NEW: AI-Generated Dress Matrix Row
 export interface AIGeneratedDressRow {
   country: Country;
@@ -120,6 +146,7 @@ export interface AIGeneratedDressRow {
   occasion: Occasion;
   notes: string;
 }
+
 
 export interface StyleAdvice {
   fashionSummary: string;
@@ -132,10 +159,12 @@ export interface StyleAdvice {
   motivationalNote: string;
 }
 
+
 export interface ChatMessage {
   role: 'user' | 'model';
   parts: string;
 }
+
 
 // ✅ MAIN USER PROFILE - WITH ALL REQUIRED PROPERTIES
 export interface UserProfile {
@@ -154,6 +183,7 @@ export interface UserProfile {
   subscription?: Subscription; // ✨ Razorpay subscription
 }
 
+
 export interface OutfitData {
   'Colour Combination': string;
   'T-Shirt/Shirt': string;
@@ -161,6 +191,7 @@ export interface OutfitData {
   'Jacket/Layer': string;
   'Shoes & Accessories': string;
 }
+
 
 // ✅ UPDATED: Plan Configuration (Razorpay instead of LemonSqueezy)
 export interface PlanConfig {

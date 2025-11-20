@@ -2,6 +2,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import type { Subscription } from '../types';
 
+
 // ✨ Razorpay TypeScript Declarations
 declare global {
   interface Window {
@@ -9,8 +10,10 @@ declare global {
   }
 }
 
+
 // ✨ Razorpay Configuration
 const RAZORPAY_KEY_ID = process.env.REACT_APP_RAZORPAY_KEY_ID;
+
 
 /**
  * ✨ Load Razorpay Script
@@ -36,6 +39,7 @@ export const loadRazorpayScript = (): Promise<boolean> => {
     document.body.appendChild(script);
   });
 };
+
 
 /**
  * ✅ UPDATED: Create subscription and redirect (New System)
@@ -85,6 +89,18 @@ export const createAndRedirectToSubscription = async (
     console.log(`✅ Subscription created: ${subscriptionId}`);
     console.log(`🔗 Redirecting to: ${shortUrl}`);
 
+    // ✨ NEW: Store subscription ID immediately in Firestore before redirect
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        'subscription.razorpaySubscriptionId': subscriptionId,
+        'subscription.status': 'created', // Mark as created, webhook will update to 'active'
+      });
+      console.log('✅ Subscription ID stored in Firestore before redirect');
+    } catch (firestoreError) {
+      console.error('⚠️ Failed to store subscription ID (will be updated by webhook):', firestoreError);
+      // Don't throw - webhook will handle it, but log the warning
+    }
+
     // Redirect to Razorpay payment page
     window.location.href = shortUrl;
 
@@ -97,8 +113,9 @@ export const createAndRedirectToSubscription = async (
   }
 };
 
+
 /**
- * ✅ UPDATED: Cancel subscription (Call API)
+ * ✅ UPDATED: Cancel subscription (Call API + Immediate Local Update)
  */
 export const cancelUserSubscription = async (
   userId: string,
@@ -107,6 +124,7 @@ export const cancelUserSubscription = async (
   try {
     console.log(`🚫 Requesting cancellation for sub: ${subscriptionId}`);
 
+    // ✅ Step 1: Call API to cancel on Razorpay
     const response = await fetch('/api/cancel-subscription', {
       method: 'POST',
       headers: {
@@ -123,13 +141,139 @@ export const cancelUserSubscription = async (
       throw new Error(errorText || 'Failed to cancel subscription');
     }
 
-    console.log(`✅ Subscription cancelled successfully`);
+    const result = await response.json();
+    console.log(`✅ Subscription cancelled on Razorpay:`, result);
+
+    // ✨ NEW: Step 2: Immediately update Firestore locally (don't wait for webhook)
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        'subscription.status': 'cancelled',
+        'subscription.tier': 'free',
+        'subscription.cancelledAt': new Date().toISOString(),
+      });
+      console.log('✅ Subscription downgraded to free locally');
+    } catch (firestoreError) {
+      console.error('❌ Failed to update Firestore after cancellation:', firestoreError);
+      throw new Error('Subscription cancelled on Razorpay but failed to update locally. Please refresh the page.');
+    }
 
   } catch (error) {
     console.error('❌ Error cancelling subscription:', error);
     throw error;
   }
 };
+
+
+/**
+ * ✨ NEW: Pause subscription (if you want to implement pause/resume feature)
+ */
+export const pauseUserSubscription = async (
+  userId: string,
+  subscriptionId: string
+): Promise<void> => {
+  try {
+    console.log(`⏸️ Pausing subscription: ${subscriptionId}`);
+
+    const response = await fetch('/api/pause-subscription', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
+        subscriptionId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to pause subscription');
+    }
+
+    // Update local state
+    await updateDoc(doc(db, 'users', userId), {
+      'subscription.status': 'paused',
+      'subscription.pausedAt': new Date().toISOString(),
+    });
+
+    console.log('✅ Subscription paused successfully');
+
+  } catch (error) {
+    console.error('❌ Error pausing subscription:', error);
+    throw error;
+  }
+};
+
+
+/**
+ * ✨ NEW: Resume subscription
+ */
+export const resumeUserSubscription = async (
+  userId: string,
+  subscriptionId: string
+): Promise<void> => {
+  try {
+    console.log(`▶️ Resuming subscription: ${subscriptionId}`);
+
+    const response = await fetch('/api/resume-subscription', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
+        subscriptionId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to resume subscription');
+    }
+
+    // Update local state
+    await updateDoc(doc(db, 'users', userId), {
+      'subscription.status': 'active',
+      'subscription.pausedAt': null,
+      'subscription.resumedAt': new Date().toISOString(),
+    });
+
+    console.log('✅ Subscription resumed successfully');
+
+  } catch (error) {
+    console.error('❌ Error resuming subscription:', error);
+    throw error;
+  }
+};
+
+
+/**
+ * ✨ NEW: Upgrade/Change subscription plan
+ */
+export const changeSubscriptionPlan = async (
+  userId: string,
+  currentSubscriptionId: string,
+  newTier: 'style_plus' | 'style_x',
+  userEmail: string,
+  userName: string
+): Promise<void> => {
+  try {
+    console.log(`🔄 Changing subscription plan to: ${newTier}`);
+
+    // Step 1: Cancel current subscription
+    await cancelUserSubscription(userId, currentSubscriptionId);
+    console.log('✅ Old subscription cancelled');
+
+    // Step 2: Create new subscription with new tier
+    await createAndRedirectToSubscription(newTier, userId, userEmail, userName);
+    console.log('✅ New subscription created');
+
+  } catch (error) {
+    console.error('❌ Error changing subscription plan:', error);
+    throw error;
+  }
+};
+
 
 /**
  * ✨ Check if Razorpay is configured
@@ -140,4 +284,39 @@ export const isRazorpayConfigured = (): boolean => {
     console.warn('⚠️ REACT_APP_RAZORPAY_KEY_ID not configured');
   }
   return hasKeyId;
+};
+
+
+/**
+ * ✨ NEW: Verify subscription status from Razorpay
+ * (Useful for manual refresh/checking)
+ */
+export const verifySubscriptionStatus = async (
+  subscriptionId: string
+): Promise<any> => {
+  try {
+    console.log(`🔍 Verifying subscription status: ${subscriptionId}`);
+
+    const response = await fetch('/api/verify-subscription', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        subscriptionId,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to verify subscription status');
+    }
+
+    const data = await response.json();
+    console.log('✅ Subscription status verified:', data);
+    return data;
+
+  } catch (error) {
+    console.error('❌ Error verifying subscription:', error);
+    throw error;
+  }
 };
