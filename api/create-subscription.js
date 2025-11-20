@@ -74,7 +74,8 @@ module.exports = async function handler(req, res) {
     });
 
     console.log('📤 Creating subscription...');
-    const subscription = await razorpay.subscriptions.create({
+    
+    const subscriptionPayload = {
       plan_id: planId,
       total_count: 12,
       quantity: 1,
@@ -85,7 +86,11 @@ module.exports = async function handler(req, res) {
         userEmail: userEmail || '',
         userName: userName || '',
       },
-    });
+    };
+    
+    console.log('📋 Subscription payload:', JSON.stringify(subscriptionPayload, null, 2));
+    
+    const subscription = await razorpay.subscriptions.create(subscriptionPayload);
 
     console.log('✅ Subscription created!');
     console.log(`   ID: ${subscription.id}`);
@@ -99,13 +104,25 @@ module.exports = async function handler(req, res) {
 
   } catch (error) {
     console.error('═══════════════════════════════════════');
-    console.error('❌ ERROR:', error.message);
+    console.error('❌ ERROR DETAILS:');
+    console.error('Error type:', typeof error);
+    console.error('Error message:', error?.message);
+    console.error('Error description:', error?.error?.description);
+    console.error('Error code:', error?.error?.code);
+    console.error('Error reason:', error?.error?.reason);
+    console.error('Error field:', error?.error?.field);
+    console.error('Error source:', error?.error?.source);
+    console.error('Full error object:', JSON.stringify(error, null, 2));
+    console.error('Error stack:', error?.stack);
     console.error('═══════════════════════════════════════');
     
     return res.status(500).json({
       error: 'Failed to create subscription',
-      message: error.message,
-      details: error.error?.description || error.toString()
+      message: error?.message || 'Unknown error',
+      description: error?.error?.description || 'No description available',
+      code: error?.error?.code || 'NO_CODE',
+      razorpayError: error?.error || null,
+      fullError: JSON.stringify(error)
     });
   }
 };
